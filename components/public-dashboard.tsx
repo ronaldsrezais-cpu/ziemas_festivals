@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Filter, Medal, School, Trophy, Users } from "lucide-react";
+import { Download, Filter, Info, Medal, School, Trophy, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FestivalHero } from "@/components/festival-hero";
 
 type PublicData = {
   sports: Array<{
@@ -55,22 +56,31 @@ type PublicData = {
   }>;
 };
 
-export function PublicDashboard() {
-  const [data, setData] = useState<PublicData | null>(null);
+const emptyData: PublicData = { sports: [], schools: [], participants: [], participantsPublic: false, participantCount: 0, results: [], uploads: [], judges: [] };
+
+export function PublicDashboard({ configured = true }: { configured?: boolean }) {
+  const [data, setData] = useState<PublicData | null>(configured ? null : emptyData);
   const [error, setError] = useState("");
   const [school, setSchool] = useState("");
   const [municipality, setMunicipality] = useState("");
   const [sport, setSport] = useState("");
   useEffect(() => {
-    fetch("/api/actions?view=public")
+    if (!configured) return;
+    const controller = new AbortController();
+    fetch("/api/actions?view=public", { signal: controller.signal })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body.error);
         return body;
       })
       .then(setData)
-      .catch((reason) => setError(reason.message));
-  }, []);
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setError("Sarakstus pašlaik neizdevās ielādēt. Lūdzu, mēģini vēlreiz vēlāk.");
+        setData(emptyData);
+      });
+    return () => controller.abort();
+  }, [configured]);
 
   const municipalities = useMemo(
     () =>
@@ -147,22 +157,13 @@ export function PublicDashboard() {
 
   return (
     <main>
-      <section className="snow-band px-4 py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl">
-          <p className="text-sm font-black uppercase tracking-[.2em] text-[#f7d21f]">
-            Latvijas skolu Ziemas festivāls
-          </p>
-          <h1 className="mt-3 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
-            Dalībnieki un sacensību rezultāti
-          </h1>
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-cyan-50/80">
-            Pirms sacensībām šeit redzamas apstiprinātās skolas un dalībnieki.
-            Pēc tiesnešu apstiprinājuma tiek publicēti rezultāti un skolu medaļu
-            kopvērtējums.
-          </p>
+      <FestivalHero />
+      <div id="dalibnieki" className="mx-auto max-w-7xl px-5 pt-12 sm:px-8 sm:pt-16">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div><p className="eyebrow mb-3">Seko līdzi festivālam</p><h2 className="section-title text-3xl sm:text-4xl">Dalībnieki un rezultāti</h2></div>
+          <p className="max-w-sm text-base leading-6 text-muted-foreground">Atrodi savu skolu un seko sacensību rezultātiem un medaļu kopvērtējumam.</p>
         </div>
-      </section>
-      <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6">
+        {!configured && <p role="status" className="mb-6 flex items-start gap-3 rounded-lg border border-[#c7cfff] bg-[#e9ecff] px-5 py-4 text-base text-[#0c0942]"><Info className="mt-0.5 size-5 shrink-0 text-primary" />Dalībnieku saraksti un rezultāti vēl nav pieejami. Lūdzu, ieskaties šeit vēlāk.</p>}
         {error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 font-bold text-red-800">
             {error}
@@ -171,7 +172,7 @@ export function PublicDashboard() {
         {!data ? (
           <div className="grid gap-4 md:grid-cols-3">
             {[1, 2, 3].map((item) => (
-              <Skeleton key={item} className="h-32 rounded-3xl" />
+              <Skeleton key={item} className="h-32 rounded-xl" />
             ))}
           </div>
         ) : (
@@ -180,28 +181,29 @@ export function PublicDashboard() {
               <Stat
                 icon={<School />}
                 label="Apstiprinātas skolas"
-                value={data.schools.length}
+                value={!configured || error ? "—" : data.schools.length}
               />
               <Stat
                 icon={<Users />}
                 label="Reģistrēti dalībnieki"
-                value={data.participantCount}
+                value={!configured || error ? "—" : data.participantCount}
               />
               <Stat
                 icon={<Trophy />}
                 label="Publicēti rezultāti"
-                value={data.results.length}
+                value={!configured || error ? "—" : data.results.length}
               />
             </section>
-            <section className="glass-panel mb-8 rounded-3xl p-5 sm:p-6">
+            <section className="glass-panel mb-8 rounded-xl p-5 sm:p-6">
               <div className="mb-4 flex items-center gap-2 font-black">
-                <Filter className="size-5 text-[#008baa]" /> Filtri
+                <Filter className="size-5 text-[#2910bf]" /> Filtri
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="form-label">
                   Skola
                   <select
                     className="form-control"
+                    disabled={data.schools.length === 0}
                     value={school}
                     onChange={(event) => setSchool(event.target.value)}
                   >
@@ -217,6 +219,7 @@ export function PublicDashboard() {
                   Novads / pilsēta
                   <select
                     className="form-control"
+                    disabled={municipalities.length === 0}
                     value={municipality}
                     onChange={(event) => setMunicipality(event.target.value)}
                   >
@@ -232,6 +235,7 @@ export function PublicDashboard() {
                   Sporta veids
                   <select
                     className="form-control"
+                    disabled={data.sports.length === 0}
                     value={sport}
                     onChange={(event) => setSport(event.target.value)}
                   >
@@ -246,22 +250,22 @@ export function PublicDashboard() {
               </div>
             </section>
             <Tabs defaultValue="participants">
-              <TabsList className="mb-6 h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#07152f] p-1.5 text-white">
+              <TabsList className="dashboard-tabs mb-6" aria-label="Festivāla saraksti">
                 <TabsTrigger
                   value="participants"
-                  className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+                  className="shrink-0"
                 >
                   Skolas un dalībnieki
                 </TabsTrigger>
                 <TabsTrigger
                   value="results"
-                  className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+                  className="shrink-0"
                 >
                   Rezultāti
                 </TabsTrigger>
                 <TabsTrigger
                   value="medals"
-                  className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+                  className="shrink-0"
                 >
                   Skolu kopvērtējums
                 </TabsTrigger>
@@ -294,16 +298,16 @@ function Stat({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number;
+  value: number | string;
 }) {
   return (
-    <div className="glass-panel flex items-center gap-4 rounded-3xl p-5">
-      <span className="grid size-12 place-items-center rounded-2xl bg-[#f7d21f] text-[#07152f]">
+    <div className="glass-panel flex items-center gap-4 rounded-xl p-5 sm:p-6">
+      <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#e9ecff] text-[#2910bf]">
         {icon}
       </span>
       <div>
-        <strong className="block text-3xl font-black">{value}</strong>
-        <span className="text-sm font-bold text-[#53657d]">{label}</span>
+        <strong className="block text-4xl font-bold">{value}</strong>
+        <span className="text-sm font-medium text-muted-foreground">{label}</span>
       </div>
     </div>
   );
@@ -320,7 +324,7 @@ function Participants({
 }) {
   return (
     <div className="grid gap-5">
-      {schools.length === 0 && <Empty text="Atbilstošu skolu nav." />}
+      {schools.length === 0 && <Empty text="Pašlaik nav skolu, ko parādīt." />}
       {schools.map((item) => {
         const schoolParticipants = participants.filter(
           (person) => person.schoolId === item.id,
@@ -328,15 +332,15 @@ function Participants({
         return (
           <article
             key={item.id}
-            className="glass-panel overflow-hidden rounded-3xl"
+            className="glass-panel overflow-hidden rounded-xl"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-white/80 px-5 py-4">
               <div>
                 <h2 className="text-xl font-black">{item.name}</h2>
-                <p className="text-sm text-[#53657d]">{item.municipality}</p>
+                <p className="text-sm text-[#65647b]">{item.municipality}</p>
               </div>
               {participantsPublic && (
-                <span className="rounded-full bg-cyan-100 px-3 py-1 text-sm font-black text-cyan-900">
+                <span className="rounded-full bg-[#e9ecff] px-3 py-1 text-sm font-black text-[#2910bf]">
                   {schoolParticipants.length} dalībnieki
                 </span>
               )}
@@ -368,13 +372,13 @@ function Participants({
                   </tbody>
                 </table>
                 {schoolParticipants.length === 0 && (
-                  <p className="p-5 text-sm font-bold text-[#53657d]">
+                  <p className="p-5 text-sm font-medium text-muted-foreground">
                     Dalībnieki vēl nav pievienoti.
                   </p>
                 )}
               </div>
             ) : (
-              <p className="p-5 text-sm font-bold text-[#53657d]">
+              <p className="p-5 text-sm font-medium text-muted-foreground">
                 Dalībnieku vārdu saraksts pašlaik nav publisks.
               </p>
             )}
@@ -405,14 +409,14 @@ function Results({
         return (
           <article
             key={item.id}
-            className="glass-panel overflow-hidden rounded-3xl"
+            className="glass-panel overflow-hidden rounded-xl"
           >
             <div className="snow-band flex items-center justify-between gap-3 px-5 py-4">
               <div>
                 <h2 className="text-xl font-black">{item.name}</h2>
-                <p className="text-sm text-cyan-100/75">{item.location}</p>
+                <p className="text-sm text-[#c7cfff]/75">{item.location}</p>
                 {sportJudges.length > 0 && (
-                  <p className="mt-1 text-xs font-bold text-cyan-50/90">
+                  <p className="mt-1 text-xs font-bold text-white/90">
                     Tiesneši:{" "}
                     {sportJudges.map((judge) => judge.fullName).join(", ")}
                   </p>
@@ -481,7 +485,7 @@ function ResultTable({
   });
   return (
     <div className="border-b last:border-0">
-      <h3 className="bg-cyan-50 px-5 py-3 font-black text-[#075b79]">
+      <h3 className="bg-[#f0f1ff] px-5 py-3 font-black text-[#2910bf]">
         {title}
       </h3>
       <div className="overflow-x-auto">
@@ -530,7 +534,7 @@ function Medals({
   }>;
 }) {
   return (
-    <article className="glass-panel overflow-hidden rounded-3xl">
+    <article className="glass-panel overflow-hidden rounded-xl">
       {rows.length === 0 ? (
         <Empty text="Kopvērtējums būs redzams pēc rezultātu publicēšanas." />
       ) : (
@@ -567,10 +571,10 @@ function Medals({
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="glass-panel grid min-h-48 place-items-center rounded-3xl p-8 text-center">
+    <div className="glass-panel grid min-h-56 place-items-center rounded-xl p-8 text-center">
       <div>
-        <Medal className="mx-auto mb-3 size-10 text-[#00a6c7]" />
-        <p className="font-bold text-[#53657d]">{text}</p>
+        <Medal className="mx-auto mb-4 size-9 text-[#2910bf]/45" />
+        <p className="font-bold text-[#65647b]">{text}</p>
       </div>
     </div>
   );

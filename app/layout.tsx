@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Ziemas festivāls | Reģistrācija un rezultāti",
   description: "Latvijas skolu Ziemas festivāla skolu reģistrācija, dalībnieku saraksti un rezultāti.",
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: { icon: "/brand/symbol.svg", shortcut: "/brand/symbol.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

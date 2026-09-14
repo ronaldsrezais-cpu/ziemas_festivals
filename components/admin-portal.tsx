@@ -180,28 +180,28 @@ export function AdminPortal() {
         <Summary label="Reģistrēti tiesneši" value={data.judges.length} />
       </div>
       <Tabs defaultValue="schools">
-        <TabsList className="mb-6 h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#07152f] p-1.5 text-white">
+        <TabsList className="mb-6 h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl bg-[#0c0942] p-1.5 text-white">
           <TabsTrigger
             value="schools"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Skolas
           </TabsTrigger>
           <TabsTrigger
             value="sports"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Sporta veidi un kategorijas
           </TabsTrigger>
           <TabsTrigger
             value="judges"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Tiesneši
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Iestatījumi
           </TabsTrigger>
@@ -292,7 +292,7 @@ function AdminLogin({
             {error}
           </p>
         )}
-        <Button className="mt-5 bg-[#07152f]" size="lg" disabled={busy}>
+        <Button className="mt-5 bg-[#0c0942]" size="lg" disabled={busy}>
           {busy ? <Loader2 className="animate-spin" /> : <ShieldCheck />} Atvērt
           administratora sadaļu
         </Button>
@@ -328,13 +328,13 @@ function SchoolsTable({
               <tr key={school.id}>
                 <td>
                   <strong>{school.name}</strong>
-                  <div className="text-xs text-[#53657d]">
+                  <div className="text-xs text-[#65647b]">
                     {school.municipality}
                   </div>
                 </td>
                 <td>
                   {school.teacherName}
-                  <div className="text-xs text-[#53657d]">
+                  <div className="text-xs text-[#65647b]">
                     {school.teacherRole}
                     <br />
                     {school.email}
@@ -377,7 +377,7 @@ function SchoolsTable({
         </table>
       </div>
       {data.schools.length === 0 && (
-        <p className="p-8 text-center font-bold text-[#53657d]">
+        <p className="p-8 text-center font-bold text-[#65647b]">
           Skolu pieteikumu vēl nav.
         </p>
       )}
@@ -402,14 +402,14 @@ function SportsSection({
           <div className="snow-band flex items-center justify-between gap-3 px-5 py-4">
             <div>
               <h2 className="text-xl font-black">{sport.name}</h2>
-              <p className="text-sm text-cyan-100/75">
+              <p className="text-sm text-[#c7cfff]/75">
                 {sport.location} ·{" "}
                 {sport.mode === "team" ? "Komandu" : "Individuāls"}
               </p>
             </div>
             <Dialog>
               <DialogTrigger asChild>
-                <Button className="bg-[#f7d21f] text-[#07152f] hover:bg-[#ffe76c]">
+                <Button className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]">
                   <Plus /> Kategorija
                 </Button>
               </DialogTrigger>
@@ -442,7 +442,7 @@ function SportsSection({
                   <tr key={category.id}>
                     <td>
                       <strong>{category.name}</strong>
-                      <div className="text-xs text-[#53657d]">
+                      <div className="text-xs text-[#65647b]">
                         {category.discipline}
                       </div>
                     </td>
@@ -486,7 +486,7 @@ function SportsSection({
               </tbody>
             </table>
             {sport.categories.length === 0 && (
-              <p className="p-5 text-sm font-bold text-[#53657d]">
+              <p className="p-5 text-sm font-bold text-[#65647b]">
                 Jaunā gada kategorijas vēl nav pievienotas.
               </p>
             )}
@@ -639,7 +639,7 @@ function CategoryForm({
           Saglabāts.
         </p>
       )}
-      <Button className="justify-self-start bg-[#07152f] sm:col-span-2">
+      <Button className="justify-self-start bg-[#0c0942] sm:col-span-2">
         <Check /> Saglabāt
       </Button>
     </form>
@@ -707,7 +707,7 @@ function JudgesSection({
             {error}
           </p>
         )}
-        <Button className="mt-5 bg-[#07152f]">
+        <Button className="mt-5 bg-[#0c0942]">
           <Plus /> Izveidot piekļuvi
         </Button>
       </form>
@@ -776,10 +776,10 @@ function SettingsSection({
             onBlur={(event) => save("festival_year", event.target.value)}
           />
         </label>
-        <div className="mt-5 flex items-center justify-between rounded-2xl bg-cyan-50 p-4">
+        <div className="mt-5 flex items-center justify-between rounded-2xl bg-[#f0f1ff] p-4">
           <div>
             <strong>Reģistrācija atvērta</strong>
-            <p className="text-sm text-[#53657d]">
+            <p className="text-sm text-[#65647b]">
               Atļaut jaunu skolu pieteikumus
             </p>
           </div>
@@ -790,10 +790,10 @@ function SettingsSection({
             }
           />
         </div>
-        <div className="mt-3 flex items-center justify-between rounded-2xl bg-cyan-50 p-4">
+        <div className="mt-3 flex items-center justify-between rounded-2xl bg-[#f0f1ff] p-4">
           <div>
             <strong>Dalībnieku saraksts publisks</strong>
-            <p className="text-sm text-[#53657d]">
+            <p className="text-sm text-[#65647b]">
               Nepilngadīgo vārdi būs redzami publiskajā lapā
             </p>
           </div>
@@ -807,7 +807,7 @@ function SettingsSection({
       </section>
       <form onSubmit={upload} className="glass-panel rounded-3xl p-6">
         <h2 className="text-xl font-black">Akreditācijas kartes dizains</h2>
-        <p className="mt-2 text-sm leading-6 text-[#53657d]">
+        <p className="mt-2 text-sm leading-6 text-[#65647b]">
           Augšupielādējiet kartes fona attēlu. Sistēma virs tā izvietos personas
           vārdu, lomu un skolu.
         </p>
@@ -821,12 +821,12 @@ function SettingsSection({
             required
           />
         </label>
-        <Button disabled={uploading} className="mt-5 bg-[#07152f]">
+        <Button disabled={uploading} className="mt-5 bg-[#0c0942]">
           {uploading ? <Loader2 className="animate-spin" /> : <Upload />}{" "}
           Augšupielādēt
         </Button>
         {notice && (
-          <p className="mt-4 rounded-xl bg-cyan-50 p-3 font-bold text-[#075b79]">
+          <p className="mt-4 rounded-xl bg-[#f0f1ff] p-3 font-bold text-[#2910bf]">
             {notice}
           </p>
         )}
@@ -839,7 +839,7 @@ function Summary({ label, value }: { label: string; value: number }) {
   return (
     <div className="glass-panel rounded-3xl p-5">
       <strong className="block text-3xl font-black">{value}</strong>
-      <span className="text-sm font-bold text-[#53657d]">{label}</span>
+      <span className="text-sm font-bold text-[#65647b]">{label}</span>
     </div>
   );
 }
