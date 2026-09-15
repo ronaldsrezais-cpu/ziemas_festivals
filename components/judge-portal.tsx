@@ -137,37 +137,37 @@ export function JudgePortal() {
           {notice}
         </p>
       )}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-[#07152f] p-5 text-white">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-[#0c0942] p-5 text-white">
         <div>
           <strong className="text-xl">{data.entries.length} pieteikumi</strong>
-          <p className="text-sm text-cyan-100/75">
+          <p className="text-sm text-[#c7cfff]/75">
             {data.categories.length} kategorijās
           </p>
         </div>
         <Button
           onClick={publish}
-          className="bg-[#f7d21f] text-[#07152f] hover:bg-[#ffe76c]"
+          className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]"
         >
           <CheckCircle2 /> Publicēt rezultātus
         </Button>
       </div>
       <Tabs defaultValue="manual">
-        <TabsList className="mb-6 h-auto rounded-2xl bg-[#07152f] p-1.5 text-white">
+        <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white">
           <TabsTrigger
             value="manual"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Manuāla ievade
           </TabsTrigger>
           <TabsTrigger
             value="import"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Importēt failu
           </TabsTrigger>
           <TabsTrigger
             value="files"
-            className="min-h-11 px-5 data-[state=active]:bg-[#f7d21f] data-[state=active]:text-[#07152f]"
+            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
             Faili
           </TabsTrigger>
@@ -214,7 +214,7 @@ export function JudgePortal() {
               </tbody>
             </table>
             {data.uploads.length === 0 && (
-              <p className="p-8 text-center font-bold text-[#53657d]">
+              <p className="p-8 text-center font-bold text-[#65647b]">
                 Faili vēl nav augšupielādēti.
               </p>
             )}
@@ -299,7 +299,7 @@ function JudgeLogin({
             {error}
           </p>
         )}
-        <Button disabled={busy} className="mt-5 bg-[#07152f]" size="lg">
+        <Button disabled={busy} className="mt-5 bg-[#0c0942]" size="lg">
           {busy ? <Loader2 className="animate-spin" /> : <KeyRound />} Atvērt
           tiesneša sadaļu
         </Button>
@@ -322,9 +322,9 @@ function ManualResults({
           key={category.id}
           className="glass-panel overflow-hidden rounded-3xl"
         >
-          <div className="border-b bg-cyan-50 px-5 py-4">
+          <div className="border-b bg-[#f0f1ff] px-5 py-4">
             <h2 className="text-xl font-black">{category.name}</h2>
-            <p className="text-sm text-[#53657d]">
+            <p className="text-sm text-[#65647b]">
               {category.discipline} · {category.minBirthYear}–
               {category.maxBirthYear}
             </p>
@@ -358,7 +358,7 @@ function ManualResults({
             </table>
           </div>
           {!data.entries.some((entry) => entry.categoryId === category.id) && (
-            <p className="p-5 text-sm font-bold text-[#53657d]">
+            <p className="p-5 text-sm font-bold text-[#65647b]">
               Šajā kategorijā pieteikumu nav.
             </p>
           )}
@@ -403,7 +403,7 @@ function ManualRow({
           {entry.teamName ?? `${entry.firstName} ${entry.lastName}`}
         </strong>
         {entry.teamName && (
-          <div className="text-xs text-[#53657d]">
+          <div className="text-xs text-[#65647b]">
             {entry.firstName} {entry.lastName}
           </div>
         )}
@@ -444,7 +444,7 @@ function ManualRow({
           size="sm"
           onClick={submit}
           disabled={busy}
-          className="bg-[#07152f]"
+          className="bg-[#0c0942]"
         >
           {busy ? <Loader2 className="animate-spin" /> : <Save />}
         </Button>
@@ -610,7 +610,7 @@ function ImportResults({
     <div className="grid gap-6">
       <section className="glass-panel rounded-3xl p-6">
         <h2 className="text-xl font-black">Rezultātu faila priekšskatījums</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#53657d]">
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB. Sistēma
           salīdzina failā atrastos vārdus un skolas ar reģistrētajiem
           dalībniekiem. Automātiski noteiktās vietas pirms saglabāšanas vienmēr
@@ -648,7 +648,7 @@ function ImportResults({
             />
           </label>
           <Button
-            className="self-end bg-[#07152f]"
+            className="self-end bg-[#0c0942]"
             disabled={!file || !categoryId || busy}
             onClick={analyse}
           >
@@ -667,7 +667,7 @@ function ImportResults({
           <div className="flex items-center justify-between gap-3 border-b p-5">
             <div>
               <h3 className="text-lg font-black">Atbilstību priekšskatījums</h3>
-              <p className="text-sm text-[#53657d]">
+              <p className="text-sm text-[#65647b]">
                 Atzīmējiet tikai pareizi identificētās rindas.
               </p>
             </div>

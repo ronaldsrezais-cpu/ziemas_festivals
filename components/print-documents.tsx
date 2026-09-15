@@ -35,7 +35,7 @@ function PrintActions({ backHref = "/skolai" }: { backHref?: string }) {
           <ArrowLeft /> Atpakaļ
         </Link>
       </Button>
-      <Button onClick={() => window.print()} className="bg-[#07152f]">
+      <Button onClick={() => window.print()} className="bg-[#0c0942]">
         <Printer /> Drukāt / saglabāt PDF
       </Button>
     </div>
@@ -55,13 +55,13 @@ export function SafetySheet() {
   return (
     <>
       <PrintActions />
-      <main className="print-sheet mx-auto min-h-[297mm] w-[210mm] max-w-full bg-white px-[16mm] py-[14mm] text-[#07152f] shadow-2xl">
-        <header className="mb-7 flex items-center gap-4 border-b-4 border-[#f7d21f] pb-5">
-          <span className="grid size-14 place-items-center rounded-full bg-[#07152f] text-white">
+      <main className="print-sheet mx-auto min-h-[297mm] w-[210mm] max-w-full bg-white px-[16mm] py-[14mm] text-[#0c0942] shadow-2xl">
+        <header className="mb-7 flex items-center gap-4 border-b-4 border-[#d2d61d] pb-5">
+          <span className="grid size-14 place-items-center rounded-full bg-[#0c0942] text-white">
             <Snowflake />
           </span>
           <div>
-            <p className="text-sm font-black uppercase tracking-[.15em] text-[#008baa]">
+            <p className="text-sm font-black uppercase tracking-[.15em] text-[#2910bf]">
               Latvijas skolu Ziemas festivāls
             </p>
             <h1 className="text-2xl font-black">
@@ -91,7 +91,7 @@ export function SafetySheet() {
         </p>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-[#07152f] text-white">
+            <tr className="bg-[#0c0942] text-white">
               <th className="border p-2 text-left">Nr.</th>
               <th className="border p-2 text-left">Vārds, uzvārds</th>
               <th className="w-48 border p-2 text-left">Paraksts</th>
@@ -117,7 +117,7 @@ export function SafetySheet() {
         </p>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-cyan-50">
+            <tr className="bg-[#f0f1ff]">
               <th className="border p-2 text-left">Vārds, uzvārds</th>
               <th className="border p-2 text-left">Loma</th>
               <th className="w-48 border p-2 text-left">Paraksts</th>
@@ -174,22 +174,22 @@ export function AccreditationSheets() {
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
-              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#07152f] p-[7mm]"
+              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#0c0942] p-[7mm]"
             >
               <div className="relative flex items-center gap-2">
-                <Snowflake className="size-7 text-[#008baa]" />
+                <Snowflake className="size-7 text-[#2910bf]" />
                 <strong className="rounded bg-white/80 px-2 py-1 text-sm tracking-tight">
                   ZIEMAS FESTIVĀLS
                 </strong>
               </div>
               <div className="relative mt-auto rounded-2xl bg-white/90 p-4 shadow-sm">
-                <p className="text-[10px] font-black tracking-[.18em] text-[#008baa]">
+                <p className="text-[10px] font-black tracking-[.18em] text-[#2910bf]">
                   {person.role}
                 </p>
                 <h2 className="mt-1 text-2xl font-black leading-tight">
                   {person.name}
                 </h2>
-                <p className="mt-1 text-sm font-bold text-[#53657d]">
+                <p className="mt-1 text-sm font-bold text-[#65647b]">
                   {data.school.name}
                 </p>
               </div>
@@ -276,22 +276,22 @@ export function AdminAccreditationSheets() {
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
-              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#07152f] p-[7mm]"
+              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#0c0942] p-[7mm]"
             >
               <div className="relative flex items-center gap-2">
-                <Snowflake className="size-7 text-[#008baa]" />
+                <Snowflake className="size-7 text-[#2910bf]" />
                 <strong className="rounded bg-white/80 px-2 py-1 text-sm tracking-tight">
                   ZIEMAS FESTIVĀLS
                 </strong>
               </div>
               <div className="relative mt-auto rounded-2xl bg-white/90 p-4 shadow-sm">
-                <p className="text-[10px] font-black tracking-[.18em] text-[#008baa]">
+                <p className="text-[10px] font-black tracking-[.18em] text-[#2910bf]">
                   {person.role}
                 </p>
                 <h2 className="mt-1 text-2xl font-black leading-tight">
                   {person.name}
                 </h2>
-                <p className="mt-1 text-sm font-bold text-[#53657d]">
+                <p className="mt-1 text-sm font-bold text-[#65647b]">
                   {person.organization}
                 </p>
               </div>

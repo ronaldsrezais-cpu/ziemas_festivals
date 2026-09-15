@@ -17,6 +17,10 @@ Pirms migrācijas aizpildiet `.env` vērtības. Migrācijas fails jau ir iekļau
 
 ## Izvietošana ar GitHub un Vercel
 
+Šis repozitorijs ir savienots ar Vercel. Izmaiņas `main` zarā automātiski izraisa jaunu produkcijas izvietošanu; citu zaru izmaiņām Vercel izveido priekšskatījumu. Turpmākiem koda atjauninājumiem ZIP augšupielāde nav vajadzīga.
+
+### Sākotnējā konfigurācija
+
 1. Izveidojiet tukšu GitHub repozitoriju un augšupielādējiet šīs mapes saturu.
 2. Vercel izvēlieties **Add New → Project**, importējiet repozitoriju un atstājiet Framework Preset kā **Next.js**.
 3. Vercel projektam pievienojiet Neon Postgres datubāzi un **Private** Vercel Blob glabātuvi. Integrācijas automātiski pievienos datubāzes un Blob savienojuma mainīgos.
@@ -40,6 +44,12 @@ openssl rand -base64 32
 | `BLOB_READ_WRITE_TOKEN` | Jā | Vercel Blob klienta augšupielāžu pilnvara |
 | `RESEND_API_KEY` | E-pastam | Resend API atslēga |
 | `EMAIL_FROM` | E-pastam | Apstiprināta sūtītāja adrese |
+
+## Zīmola noformējums
+
+Noformējums pielāgots lietotāja iesniegtajai Latvijas skolu Ziemas festivāla zīmola grāmatai. Krāsas: tumši violets `#0C0942`, violets `#2910BF`, lavandas `#C7CFFF`, koraļļu `#FF4A4A`, laima `#D2D61D`. Logo un grafiskais raksts ir `public/brand/`; vietēji glabātie League Spartan un Oswald fonti un to OFL licences — `public/fonts/`. Tēma un kopīgie stili ir `app/globals.css`.
+
+Bez `DATABASE_URL` sākumlapa rāda noformējumu un paziņojumu par vēl nepieejamiem sarakstiem, bet skolas pieteikuma iesniegšana ir atspējota. Pēc vides mainīgo pievienošanas jāveic jauna Vercel izvietošana. Piemēra dalībnieki un izdomāti rezultāti netiek publicēti.
 
 ## Galvenās adreses
 
