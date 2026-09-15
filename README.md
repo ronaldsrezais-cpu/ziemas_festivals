@@ -47,7 +47,7 @@ openssl rand -base64 32
 
 ## Zīmola noformējums
 
-Noformējums pielāgots lietotāja iesniegtajai Latvijas skolu Ziemas festivāla zīmola grāmatai. Krāsas: tumši violets `#0C0942`, violets `#2910BF`, lavandas `#C7CFFF`, koraļļu `#FF4A4A`, laima `#D2D61D`. Logo un grafiskais raksts ir `public/brand/`; vietēji glabātie League Spartan un Oswald fonti un to OFL licences — `public/fonts/`. Tēma un kopīgie stili ir `app/globals.css`.
+Noformējums pielāgots lietotāja iesniegtajai Latvijas skolu Ziemas festivāla zīmola grāmatai. Krāsas: tumši violets `#0C0942`, violets `#2910BF`, lavandas `#C7CFFF`, koraļļu `#FF4A4A`, laima `#D2D61D`. Logo un grafiskais raksts ir `public/brand/`; vietēji glabātie League Spartan un Oswald fonti un to OFL licences — `public/fonts/`. Tēma un kopīgie stili ir `app/festival.css`.
 
 Bez `DATABASE_URL` sākumlapa rāda noformējumu un paziņojumu par vēl nepieejamiem sarakstiem, bet skolas pieteikuma iesniegšana ir atspējota. Pēc vides mainīgo pievienošanas jāveic jauna Vercel izvietošana. Piemēra dalībnieki un izdomāti rezultāti netiek publicēti.
 
