@@ -23,10 +23,10 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         <Link href="/" aria-label="Ziemas festivāls — sākumlapa" className="shrink-0" onClick={() => setOpen(false)}>
           <Image src="/brand/logo-color.svg" alt="Latvijas skolu Ziemas festivāls" width={224} height={64} priority className="h-auto w-48 lg:w-56" />
         </Link>
-        <button className="grid size-11 place-items-center rounded-md border md:hidden" aria-label={open ? "Aizvērt izvēlni" : "Atvērt izvēlni"} aria-expanded={open} aria-controls="galvena-izvelne" onClick={() => setOpen(value => !value)}>{open ? <X /> : <Menu />}</button>
-        <nav id="galvena-izvelne" aria-label="Galvenā izvēlne" onKeyDown={event => { if (event.key === "Escape") setOpen(false); }} className={cn("absolute inset-x-0 top-full grid gap-1 border-b bg-white p-5 shadow-lg md:static md:flex md:items-center md:gap-1 md:border-0 md:p-0 md:shadow-none lg:gap-3", !open && "hidden md:flex")}>
+        <button className="grid size-11 place-items-center rounded-md border lg:hidden" aria-label={open ? "Aizvērt izvēlni" : "Atvērt izvēlni"} aria-expanded={open} aria-controls="galvena-izvelne" onClick={() => setOpen(value => !value)}>{open ? <X /> : <Menu />}</button>
+        <nav id="galvena-izvelne" aria-label="Galvenā izvēlne" onKeyDown={event => { if (event.key === "Escape") setOpen(false); }} className={cn("absolute inset-x-0 top-full grid gap-1 border-b bg-white p-5 shadow-lg lg:static lg:flex lg:items-center lg:gap-1 lg:border-0 lg:p-0 lg:shadow-none xl:gap-3", !open && "hidden lg:flex")}>
           {nav.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} onClick={() => setOpen(false)} className={cn("rounded-md px-3 py-3 text-sm font-medium hover:bg-accent hover:text-primary lg:text-base", pathname === item.href && "text-primary")}>{item.label}</Link>)}
-          <Link href="/registracija" aria-current={pathname === "/registracija" ? "page" : undefined} onClick={() => setOpen(false)} className="mt-2 flex items-center justify-center gap-3 rounded-md bg-primary px-5 py-3 text-sm font-bold text-white hover:bg-[#0c0942] md:ml-2 md:mt-0 lg:text-base">Reģistrēt skolu <ArrowRight className="size-4" /></Link>
+          <Link href="/registracija" aria-current={pathname === "/registracija" ? "page" : undefined} onClick={() => setOpen(false)} className="mt-2 flex items-center justify-center gap-3 rounded-md bg-primary px-5 py-3 text-sm font-bold text-white hover:bg-[#0c0942] lg:ml-2 lg:mt-0 lg:text-base">Reģistrēt skolu <ArrowRight className="size-4" /></Link>
         </nav>
       </div>
     </header>
