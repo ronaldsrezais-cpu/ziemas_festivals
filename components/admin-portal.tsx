@@ -57,6 +57,7 @@ type AdminData = {
     email: string;
     phone: string;
     status: string;
+    accessCode: string | null;
     participantCount: number;
     leaderCount: number;
     createdAt: string;
@@ -320,6 +321,7 @@ function SchoolsTable({
               <th>Kontaktpersona</th>
               <th>Dalībnieki / vadītāji</th>
               <th>Statuss</th>
+              <th>Piekļuves kods</th>
               <th></th>
             </tr>
           </thead>
@@ -347,6 +349,9 @@ function SchoolsTable({
                 </td>
                 <td>
                   <Status value={school.status} />
+                </td>
+                <td>
+                  {school.accessCode ? <code className="select-all whitespace-nowrap rounded bg-slate-100 px-2 py-1 text-base font-bold tracking-wider">{school.accessCode}</code> : <span className="text-xs text-muted-foreground">{school.status === "approved" ? "Kods nav pieejams" : "Pēc apstiprināšanas"}</span>}
                 </td>
                 <td>
                   <div className="flex justify-end gap-1">

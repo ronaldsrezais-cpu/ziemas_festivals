@@ -26,6 +26,7 @@ import {
   requiredLeaders,
   verifySecret,
 } from "@/lib/security";
+import { recoverSchoolAccessCode } from "@/lib/school-access-code";
 import { getSportsWithCategories } from "@/lib/sport-seed";
 
 export const dynamic = "force-dynamic";
@@ -230,6 +231,7 @@ async function adminView() {
     judgeRows,
     outboxRows,
     settingRows,
+    codeMessages,
   ] = await Promise.all([
     db.select().from(schools).orderBy(desc(schools.createdAt)),
     db.select().from(leaders),
@@ -256,16 +258,28 @@ async function adminView() {
       .orderBy(desc(emailOutbox.createdAt))
       .limit(20),
     db.select().from(settings),
+    db.selectDistinctOn([emailOutbox.schoolId], {
+      schoolId: emailOutbox.schoolId,
+      body: emailOutbox.body,
+    }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
   ]);
-  return {
-    schools: schoolRows.map((school) => ({
-      ...school,
+  const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
+  const adminSchools = await Promise.all(schoolRows.map(async (school) => {
+    const { accessCodeHash: currentHash, ...details } = school;
+    return {
+      ...details,
+      accessCode: school.status === "approved" && runtimeEnv().AUTH_SECRET
+        ? await recoverSchoolAccessCode(codeBodies.get(school.id), currentHash, accessCodeHash)
+        : null,
       participantCount: participantRows.filter(
         (person) => person.schoolId === school.id,
       ).length,
       leaderCount: leaderRows.filter((leader) => leader.schoolId === school.id)
         .length,
-    })),
+    };
+  }));
+  return {
+    schools: adminSchools,
     sports: sportRows.map((sport) => ({
       ...sport,
       categories: categoryRows.filter(

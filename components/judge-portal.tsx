@@ -11,6 +11,7 @@ import {
   Save,
   Upload,
 } from "lucide-react";
+import { previewResultMatches } from "@/lib/result-import";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -59,6 +60,8 @@ type JudgeData = {
   }>;
 };
 type PreviewRow = Entry & {
+  sourceLine: string;
+  matchNote: string;
   placement: string;
   status: Result["status"];
   score: string;
@@ -453,29 +456,6 @@ function ManualRow({
   );
 }
 
-function normalize(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-function inferPlace(text: string, name: string) {
-  const source = normalize(text);
-  const target = normalize(name);
-  const index = source.indexOf(target);
-  if (index < 0) return "";
-  const before = source.slice(Math.max(0, index - 100), index);
-  const tokens = (before.match(/\b\d{1,4}\b/g) ?? []).map(Number);
-  if (tokens.length === 0) return "";
-  const candidates = tokens
-    .slice(-5)
-    .filter((number) => number > 0 && number <= 200);
-  if (candidates.length >= 2)
-    return String(candidates.find((number) => number <= 50) ?? "");
-  return candidates[0] && candidates[0] <= 50 ? String(candidates[0]) : "";
-}
 async function extractFileText(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "pdf") {
@@ -490,9 +470,17 @@ async function extractFileText(file: File) {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      pages.push(
-        content.items.map((item) => ("str" in item ? item.str : "")).join(" "),
-      );
+      const lines: Array<{ y: number; items: Array<{ x: number; text: string }> }> = [];
+      for (const item of content.items) {
+        if (!("str" in item) || !item.str.trim()) continue;
+        const y = item.transform[5];
+        let line = lines.find((row) => Math.abs(row.y - y) < 3);
+        if (!line) { line = { y, items: [] }; lines.push(line); }
+        line.items.push({ x: item.transform[4], text: item.str });
+      }
+      pages.push(lines.sort((a, b) => b.y - a.y).map((line) =>
+        line.items.sort((a, b) => a.x - b.x).map((item) => item.text).join("\t"),
+      ).join("\n"));
     }
     return pages.join("\n");
   }
@@ -521,34 +509,32 @@ function ImportResults({
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
+  const [extractedText, setExtractedText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function analyse() {
     if (!file || !categoryId) return;
     setBusy(true);
     setError("");
+    setPreview([]);
+    setExtractedText("");
     try {
       if (file.size > 12 * 1024 * 1024) {
         throw new Error("Fails pārsniedz 12 MB.");
       }
       const text = await extractFileText(file);
-      const rows = data.entries
-        .filter((entry) => entry.categoryId === Number(categoryId))
-        .map((entry) => {
-          const matched =
-            normalize(text).includes(
-              normalize(`${entry.firstName} ${entry.lastName}`),
-            ) || normalize(text).includes(normalize(entry.schoolName));
-          return {
-            ...entry,
-            matched,
-            placement: matched
-              ? inferPlace(text, `${entry.firstName} ${entry.lastName}`)
-              : "",
-            status: "ranked" as const,
-            score: "",
-          };
-        });
+      setExtractedText(text);
+      if (!text.trim()) throw new Error("Failā nav nolasāma teksta. Skenētam PDF nepieciešama teksta atpazīšana; izmantojiet Excel vai CSV failu.");
+      const selectedEntries = data.entries.filter((entry) => entry.categoryId === Number(categoryId));
+      if (!selectedEntries.length) throw new Error("Šajā kategorijā nav pieteiktu dalībnieku. Vispirms piesakiet testa dalībniekus.");
+      const matches = previewResultMatches(text, selectedEntries);
+      const rows = selectedEntries.map((entry, index) => ({
+        ...entry,
+        ...matches[index],
+        matched: false,
+        status: "ranked" as const,
+        score: "",
+      }));
       setPreview(rows);
     } catch (reason) {
       setError(
@@ -559,7 +545,7 @@ function ImportResults({
     }
   }
   async function importRows() {
-    if (!file) return;
+    if (!file || !preview.some((row) => row.matched && (row.placement || row.status !== "ranked"))) return;
     setBusy(true);
     setError("");
     try {
@@ -612,9 +598,10 @@ function ImportResults({
         <h2 className="text-xl font-black">Rezultātu faila priekšskatījums</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB. Sistēma
-          salīdzina failā atrastos vārdus un skolas ar reģistrētajiem
-          dalībniekiem. Automātiski noteiktās vietas pirms saglabāšanas vienmēr
-          pārbaudiet.
+          salīdzina vārdus un uzvārdus ar izvēlētās kategorijas dalībniekiem.
+          Vietu automātiski piedāvā tikai tad, ja atpazīta kolonna “Vieta”, “Place”, “Rank” vai “Position”.
+          Pārbaudiet avota rindu un paši atzīmējiet iekļaujamos dalībniekus. Rezultāta laiku vai punktus ievadiet manuāli.
+          Skenētus PDF bez teksta slāņa sistēma nenolasa.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
           <label className="form-label">
@@ -622,9 +609,11 @@ function ImportResults({
             <select
               className="form-control"
               value={categoryId}
+              disabled={busy}
               onChange={(e) => {
                 setCategoryId(e.target.value);
                 setPreview([]);
+                setExtractedText("");
               }}
             >
               <option value="">Izvēlieties</option>
@@ -640,10 +629,12 @@ function ImportResults({
             <input
               className="form-control"
               type="file"
+              disabled={busy}
               accept=".pdf,.xlsx,.csv,.tsv,.txt"
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
                 setPreview([]);
+                setExtractedText("");
               }}
             />
           </label>
@@ -662,6 +653,7 @@ function ImportResults({
           </p>
         )}
       </section>
+      {extractedText && <details className="glass-panel rounded-2xl p-5"><summary className="cursor-pointer font-bold">Parādīt no faila nolasīto tekstu</summary><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap text-xs">{extractedText}</pre></details>}
       {preview.length > 0 && (
         <section className="glass-panel overflow-hidden rounded-3xl">
           <div className="flex items-center justify-between gap-3 border-b p-5">
@@ -673,7 +665,7 @@ function ImportResults({
             </div>
             <Button
               onClick={importRows}
-              disabled={busy}
+              disabled={busy || !preview.some((row) => row.matched && (row.placement || row.status !== "ranked"))}
               className="bg-emerald-700 hover:bg-emerald-800"
             >
               <Upload /> Saglabāt un pievienot failu
@@ -711,6 +703,8 @@ function ImportResults({
                     </td>
                     <td className="font-black">
                       {row.firstName} {row.lastName}
+                      <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.matchNote}</p>
+                      {row.sourceLine && <details className="mt-2 max-w-md text-xs font-normal"><summary className="cursor-pointer">Atrasta faila rinda</summary><pre className="mt-1 whitespace-pre-wrap break-words">{row.sourceLine}</pre></details>}
                     </td>
                     <td>{row.schoolName}</td>
                     <td>
