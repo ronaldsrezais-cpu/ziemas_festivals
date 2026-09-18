@@ -202,39 +202,32 @@ export function AdminAccreditationSheets() {
   return (
     <>
       <PrintActions backHref="/admin" />
-      <main className="print-sheet mx-auto w-[210mm] max-w-full bg-white p-[10mm] shadow-2xl">
-        <div className="grid grid-cols-2 gap-[6mm]">
-          {people.map((person) => (
-            <article
-              key={person.id}
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(255,255,255,.04),rgba(255,255,255,.04)), url('/api/template'), linear-gradient(145deg,#dff7ff,#ffffff)",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#0c0942] p-[7mm]"
-            >
-              <div className="relative flex items-center gap-2">
-                <Snowflake className="size-7 text-[#2910bf]" />
-                <strong className="rounded bg-white/80 px-2 py-1 text-sm tracking-tight">
-                  ZIEMAS FESTIVĀLS
-                </strong>
-              </div>
-              <div className="relative mt-auto rounded-2xl bg-white/90 p-4 shadow-sm">
-                <p className="text-[10px] font-black tracking-[.18em] text-[#2910bf]">
-                  {person.role}
-                </p>
-                <h2 className="mt-1 text-2xl font-black leading-tight">
-                  {person.name}
-                </h2>
-                <p className="mt-1 text-sm font-bold text-[#65647b]">
-                  {person.organization}
-                </p>
+      <div className="no-print mx-auto mb-6 max-w-[210mm] rounded-xl bg-amber-50 p-4 text-amber-950">
+        <strong>Testa akreditācijas karte</strong>
+        <p>Parauga datums — 16. februāris — un programma vēl nav saskaņoti šim gadam.</p>
+        <p>Katram cilvēkam sagatavota A6 priekšpuse un programmas aizmugure. Drukājiet A6 formātā, 100% mērogā, bez galvenēm un kājenēm. Divpusējai drukai izvēlieties apgriešanu gar garo malu.</p>
+      </div>
+      {people.length === 0 && <p className="no-print p-8 text-center">Vēl nav dalībnieku, vadītāju vai tiesnešu, kuriem izveidot kartes.</p>}
+      <main className="accreditation-pages">
+        <style>{`@media print { @page { size: A6 portrait; margin: 0; } }`}</style>
+        {people.map((person) => (
+          <div key={person.id} className="accreditation-pair">
+            <article className="accreditation-card" aria-label={`Akreditācija: ${person.name}`}>
+              {/* Native images preserve exact print dimensions and authenticated template access. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="accreditation-background" src="/api/template" alt="Akreditācijas kartes priekšpuse" />
+              <div className="accreditation-person">
+                <p className="accreditation-role">{person.role}</p>
+                <h2 className="accreditation-name" style={{ fontSize: person.name.length > 42 ? "17pt" : person.name.length > 28 ? "21pt" : "26pt" }}>{person.name}</h2>
+                <p className="accreditation-organization" style={{ fontSize: person.organization.length > 70 ? "11pt" : "14pt" }}>{person.organization}</p>
               </div>
             </article>
-          ))}
-        </div>
+            <article className="accreditation-card" aria-label={`Programma: ${person.name}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="accreditation-background" src="/api/template?side=back" alt="Parauga programma — jāsaskaņo šim gadam" />
+            </article>
+          </div>
+        ))}
       </main>
     </>
   );

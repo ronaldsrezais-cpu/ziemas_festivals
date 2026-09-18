@@ -68,3 +68,17 @@ a:focus-visible, button:focus-visible { outline: 3px solid #8070ed; outline-offs
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @media print { body { background: white !important; } .no-print { display: none !important; } .print-sheet { box-shadow: none !important; border: 0 !important; margin: 0 !important; } }
+
+/* A6 accreditation: one front/back pair per person, with original artwork. */
+.accreditation-pair { display: flex; flex-wrap: wrap; justify-content: center; gap: 8mm; margin-bottom: 8mm; }
+.accreditation-card { position: relative; width: 105mm; height: 148mm; flex: 0 0 105mm; overflow: hidden; background: white; color: #1c193a; box-shadow: 0 2px 16px #0002; }
+.accreditation-background { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.accreditation-person { position: absolute; top: 37%; left: 8%; right: 8%; height: 40%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4mm; overflow-wrap: anywhere; }
+.accreditation-role { font-size: 11pt; font-weight: 800; letter-spacing: .06em; }
+.accreditation-name { font-weight: 900; line-height: 1.1; }
+.accreditation-organization { font-weight: 700; line-height: 1.25; }
+@media print {
+  .accreditation-pair { display: block; margin: 0; }
+  .accreditation-card { margin: 0; box-shadow: none; break-inside: avoid; break-after: page; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .accreditation-pair:last-child .accreditation-card:last-child { break-after: auto; }
+}
