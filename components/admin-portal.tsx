@@ -13,6 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { ParticipantList } from "@/components/participant-list";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -188,6 +189,7 @@ export function AdminPortal() {
           >
             Skolas
           </TabsTrigger>
+          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger>
           <TabsTrigger
             value="sports"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
@@ -207,6 +209,7 @@ export function AdminPortal() {
             Iestatījumi
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="participants"><ParticipantList /></TabsContent>
         <TabsContent value="schools">
           <SchoolsTable
             data={data}

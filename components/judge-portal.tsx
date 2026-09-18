@@ -12,6 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { previewResultMatches } from "@/lib/result-import";
+import { ParticipantList } from "@/components/participant-list";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -156,6 +157,7 @@ export function JudgePortal() {
       </div>
       <Tabs defaultValue="manual">
         <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white">
+          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger>
           <TabsTrigger
             value="manual"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
@@ -175,6 +177,7 @@ export function JudgePortal() {
             Faili
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="participants"><ParticipantList /></TabsContent>
         <TabsContent value="manual">
           <ManualResults
             data={data}
