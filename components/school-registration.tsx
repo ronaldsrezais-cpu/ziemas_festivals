@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
+import { municipalities, stateCities } from "@/lib/municipalities";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const steps = [
@@ -55,7 +56,17 @@ export function SchoolRegistration({ configured = true }: { configured?: boolean
             <legend className="mb-5 text-xl font-bold">Skolas informācija</legend>
             <div className="grid gap-5">
               <label className="form-label">Skolas nosaukums<input className="form-control" name="name" required autoComplete="organization" placeholder="Pilns skolas nosaukums" /></label>
-              <label className="form-label">Novads vai valstspilsēta<input className="form-control" name="municipality" required placeholder="Piemēram, Cēsu novads" /></label>
+              <label className="form-label">Novads vai valstspilsēta
+                <select className="form-control" name="municipality" required defaultValue="">
+                  <option value="" disabled>Izvēlies novadu vai valstspilsētu</option>
+                  <optgroup label="Valstspilsētas">
+                    {stateCities.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </optgroup>
+                  <optgroup label="Novadi">
+                    {municipalities.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </optgroup>
+                </select>
+              </label>
             </div>
           </fieldset>
           <fieldset className="mt-8 border-t pt-7">

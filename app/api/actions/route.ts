@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { municipalityOptions } from "@/lib/municipalities";
 import { getDb } from "@/db";
 import {
   categories,
@@ -33,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const schoolRegistrationSchema = z.object({
   name: z.string().trim().min(2).max(180),
-  municipality: z.string().trim().min(2).max(120),
+  municipality: z.enum(municipalityOptions, { errorMap: () => ({ message: "Izvēlieties novadu vai valstspilsētu no saraksta." }) }),
   teacherName: z.string().trim().min(3).max(120),
   teacherRole: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(180),
