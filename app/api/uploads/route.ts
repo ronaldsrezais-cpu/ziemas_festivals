@@ -22,9 +22,10 @@ export async function POST(request: Request) {
     const response = await handleUpload({
       body,
       request,
+      token: process.env.BLOB_READ_WRITE_TOKEN?.trim(),
       onBeforeGenerateToken: async (pathname) => {
         const session = await getSession("judge");
-        if (!session) throw new Error("Nav atļauts.");
+        if (!session) throw new Error("Tiesneša sesija nav derīga. Pieslēdzieties tiesneša sadaļai vēlreiz, vēlams atsevišķā inkognito logā.");
         const [judge] = await getDb().select().from(judges).where(eq(judges.id, session.subjectId)).limit(1);
         if (!judge) throw new Error("Tiesnesis nav atrasts.");
         if (!pathname.startsWith(`results/${judge.sportId}/`)) throw new Error("Nederīgs faila ceļš.");
@@ -35,11 +36,16 @@ export async function POST(request: Request) {
           tokenPayload: JSON.stringify({ judgeId: judge.id, sportId: judge.sportId }),
         };
       },
-      onUploadCompleted: async () => undefined,
     });
     return Response.json(response);
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Augšupielāde neizdevās." }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Augšupielāde neizdevās.";
+    const explanation = message.includes("No read-write token")
+      ? "Nav iestatīta failu glabātuves atslēga BLOB_READ_WRITE_TOKEN. Administratoram jāpārbauda Vercel Production iestatījumi un jāveic Redeploy."
+      : message.includes("Invalid `BLOB_READ_WRITE_TOKEN`") || message.includes("Invalid `token` parameter")
+        ? "Failu glabātuves atslēgas formāts nav derīgs. Administratoram jāiekopē tikai BLOB_READ_WRITE_TOKEN vērtība bez mainīgā nosaukuma un pēdiņām, pēc tam jāveic Redeploy."
+        : message;
+    return Response.json({ error: explanation }, { status: 400 });
   }
 }
 

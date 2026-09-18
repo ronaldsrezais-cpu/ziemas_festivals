@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { upload } from "@vercel/blob/client";
+import { put } from "@vercel/blob/client";
 import {
   CheckCircle2,
   FileSpreadsheet,
@@ -551,9 +551,23 @@ function ImportResults({
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const pathname = `results/${data.judge.sportId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
-      const blob = await upload(pathname, file, {
+      const tokenResponse = await fetch("/api/uploads", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "blob.generate-client-token",
+          payload: { pathname, clientPayload: null, multipart: false },
+        }),
+      });
+      const tokenBody = await tokenResponse.json().catch(() => null);
+      if (!tokenResponse.ok || !tokenBody?.clientToken) {
+        throw new Error(tokenBody?.error ?? `Neizdevās saņemt faila augšupielādes atļauju (HTTP ${tokenResponse.status}). Pārlādējiet lapu un pieslēdzieties tiesneša sadaļai vēlreiz.`);
+      }
+      // Only the short-lived, path-restricted client token reaches the browser.
+      const blob = await put(pathname, file, {
         access: "private",
-        handleUploadUrl: "/api/uploads",
+        token: tokenBody.clientToken,
         contentType: file.type || "application/octet-stream",
       });
       const uploadResponse = await fetch("/api/uploads", {
