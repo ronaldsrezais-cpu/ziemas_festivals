@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 const nav = [
   { href: "/", label: "Dalībnieki un rezultāti" },
   { href: "/skolai", label: "Skolas sadaļa" },
-  { href: "/tiesnesiem", label: "Tiesnešiem" },
 ];
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -37,7 +36,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         <div><Image src="/brand/logo-white.svg" alt="Latvijas skolu Ziemas festivāls" width={224} height={64} className="h-auto w-56" /><p className="mt-4 text-sm text-[#c7cfff]">Reģistrācija. Dalībnieki. Rezultāti.</p></div>
         <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-sm">
           <a href="https://ziemasfestivals.lv/" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-[#d2d61d]">Festivāla mājaslapa <ArrowUpRight className="size-4" /></a>
-          <Link href="/admin" className="text-[#c7cfff] hover:text-white">Administratoram</Link>
         </div>
       </div>
     </footer>
