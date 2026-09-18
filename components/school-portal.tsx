@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download, Edit3, FileSignature, KeyRound, Loader2, LogOut, Plus, Save, Trash2, UserRoundPlus, Users } from "lucide-react";
+import { Edit3, FileSignature, KeyRound, Loader2, LogOut, Plus, Save, Trash2, UserRoundPlus, Users } from "lucide-react";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -47,7 +47,7 @@ export function SchoolPortal() {
     <section className="mb-7 grid gap-4 md:grid-cols-3">
       <Info label="Dalībnieki" value={data.participants.length} icon={<Users/>}/>
       <Info label="Komandas vadītāji" value={`${data.leaders.length} / ${data.requiredLeaders}`} icon={<UserRoundPlus/>} warning={data.leaders.length < data.requiredLeaders}/>
-      <div className="glass-panel flex flex-wrap content-center gap-2 rounded-3xl p-5 md:col-span-1"><Button asChild className="bg-[#0c0942]"><Link href="/skolai/drosibas-lapa"><FileSignature/> Drošības parakstu lapa</Link></Button><Button asChild variant="outline"><Link href="/skolai/akreditacijas"><Download/> Akreditācijas</Link></Button></div>
+      <div className="glass-panel flex flex-wrap content-center gap-2 rounded-3xl p-5 md:col-span-1"><Button asChild className="bg-[#0c0942]"><Link href="/skolai/drosibas-lapa"><FileSignature/> Drošības parakstu lapa</Link></Button></div>
     </section>
     {data.leaders.length < data.requiredLeaders && <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-900">Pie {data.participants.length} dalībniekiem nepieciešami vismaz {data.requiredLeaders} komandas vadītāji. Pievienojiet vēl {data.requiredLeaders - data.leaders.length}.</div>}
     <Tabs defaultValue="participants">

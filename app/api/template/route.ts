@@ -20,8 +20,8 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const session = await getSession();
-  if (!session || !["admin", "school"].includes(session.role)) return new Response("Nav atļauts.", { status: 401 });
+  const session = await getSession("admin");
+  if (!session) return new Response("Nav atļauts.", { status: 401 });
   const [row] = await getDb().select().from(settings).where(eq(settings.key, "accreditation_template_key")).limit(1);
   if (!row) return new Response(null, { status: 204 });
   const object = await get(row.value, { access: "private" });

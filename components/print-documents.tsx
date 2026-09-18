@@ -138,69 +138,6 @@ export function SafetySheet() {
   );
 }
 
-export function AccreditationSheets() {
-  const { data, error } = usePrintData();
-  if (error)
-    return <p className="p-8 text-center font-bold text-red-800">{error}</p>;
-  if (!data)
-    return (
-      <div className="grid min-h-screen place-items-center">
-        <Loader2 className="size-10 animate-spin" />
-      </div>
-    );
-  const people = [
-    ...data.leaders.map((person) => ({
-      id: `l${person.id}`,
-      name: person.fullName,
-      role: "KOMANDAS VADĪTĀJS",
-    })),
-    ...data.participants.map((person) => ({
-      id: `p${person.id}`,
-      name: `${person.firstName} ${person.lastName}`,
-      role: "DALĪBNIEKS",
-    })),
-  ];
-  return (
-    <>
-      <PrintActions />
-      <main className="print-sheet mx-auto w-[210mm] max-w-full bg-white p-[10mm] shadow-2xl">
-        <div className="grid grid-cols-2 gap-[6mm]">
-          {people.map((person) => (
-            <article
-              key={person.id}
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(255,255,255,.04),rgba(255,255,255,.04)), url('/api/template'), linear-gradient(145deg,#dff7ff,#ffffff)",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-              className="relative flex aspect-[1.58/1] break-inside-avoid flex-col overflow-hidden rounded-[5mm] border-2 border-[#0c0942] p-[7mm]"
-            >
-              <div className="relative flex items-center gap-2">
-                <Snowflake className="size-7 text-[#2910bf]" />
-                <strong className="rounded bg-white/80 px-2 py-1 text-sm tracking-tight">
-                  ZIEMAS FESTIVĀLS
-                </strong>
-              </div>
-              <div className="relative mt-auto rounded-2xl bg-white/90 p-4 shadow-sm">
-                <p className="text-[10px] font-black tracking-[.18em] text-[#2910bf]">
-                  {person.role}
-                </p>
-                <h2 className="mt-1 text-2xl font-black leading-tight">
-                  {person.name}
-                </h2>
-                <p className="mt-1 text-sm font-bold text-[#65647b]">
-                  {data.school.name}
-                </p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </main>
-    </>
-  );
-}
-
 type AdminPrintData = {
   participants: Array<{
     id: number;

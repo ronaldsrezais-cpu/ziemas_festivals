@@ -1,3 +1,5 @@
-import { AccreditationSheets } from "@/components/print-documents";
+import { redirect } from "next/navigation";
 
-export default function AccreditationsPage() { return <AccreditationSheets/>; }
+export default function AccreditationsPage() {
+  redirect("/skolai");
+}
