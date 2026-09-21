@@ -33,7 +33,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     <footer className="no-print mt-20 bg-[#0c0942] text-white">
       <div className="brand-stripe" />
       <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 px-5 py-12 sm:px-8 md:flex-row md:items-center">
-        <div><Image src="/brand/logo-white.svg" alt="Latvijas skolu Ziemas festivāls" width={224} height={64} className="h-auto w-56" /><p className="mt-4 text-sm text-[#c7cfff]">Reģistrācija. Dalībnieki. Rezultāti.</p></div>
+        <div className="w-fit rounded-xl bg-white p-4"><Image src="/brand/logo-color.svg" alt="Latvijas skolu Ziemas festivāls" width={224} height={64} className="h-auto w-56" /></div>
         <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-sm">
           <a href="https://ziemasfestivals.lv/" target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-[#d2d61d]">Festivāla mājaslapa <ArrowUpRight className="size-4" /></a>
         </div>

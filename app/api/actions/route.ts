@@ -265,6 +265,7 @@ async function adminView() {
     }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
   ]);
   const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
+  const schoolById = new Map(schoolRows.map((school) => [school.id, school]));
   const adminSchools = await Promise.all(schoolRows.map(async (school) => {
     const { accessCodeHash: currentHash, ...details } = school;
     return {
@@ -281,6 +282,20 @@ async function adminView() {
   }));
   return {
     schools: adminSchools,
+    leaders: leaderRows.map((leader) => {
+      const school = schoolById.get(leader.schoolId);
+      return {
+        id: leader.id,
+        fullName: leader.fullName,
+        role: leader.role,
+        email: leader.email,
+        phone: leader.phone,
+        schoolId: leader.schoolId,
+        schoolName: school?.name ?? "",
+        municipality: school?.municipality ?? "",
+        schoolStatus: school?.status ?? "",
+      };
+    }).sort((a, b) => a.schoolName.localeCompare(b.schoolName, "lv") || a.fullName.localeCompare(b.fullName, "lv")),
     sports: sportRows.map((sport) => ({
       ...sport,
       categories: categoryRows.filter(

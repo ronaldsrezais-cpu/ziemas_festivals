@@ -27,15 +27,15 @@ function usePrintData() {
   return { data, error };
 }
 
-function PrintActions({ backHref = "/skolai" }: { backHref?: string }) {
+function PrintActions({ backHref = "/skolai", disabled = false }: { backHref?: string; disabled?: boolean }) {
   return (
-    <div className="no-print mx-auto mb-6 flex max-w-[210mm] items-center justify-between gap-3 px-4 pt-6">
+    <div className="no-print mx-auto mb-6 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 px-4 pt-6">
       <Button asChild variant="outline">
         <Link href={backHref}>
           <ArrowLeft /> Atpakaļ
         </Link>
       </Button>
-      <Button onClick={() => window.print()} className="bg-[#0c0942]">
+      <Button onClick={() => window.print()} disabled={disabled} className="bg-[#0c0942]">
         <Printer /> Drukāt / saglabāt PDF
       </Button>
     </div>
@@ -158,9 +158,12 @@ type AdminPrintData = {
   }>;
 };
 
-export function AdminAccreditationSheets() {
+type AccreditationGroup = "all" | "participants" | "leaders" | "judges";
+
+export function AdminAccreditationSheets({ initialGroup = "all" }: { initialGroup?: AccreditationGroup }) {
   const [data, setData] = useState<AdminPrintData | null>(null);
   const [error, setError] = useState("");
+  const [group, setGroup] = useState<AccreditationGroup>(initialGroup);
   useEffect(() => {
     fetch("/api/actions?view=admin-accreditations")
       .then(async (response) => {
@@ -182,32 +185,48 @@ export function AdminAccreditationSheets() {
   const people = [
     ...data.participants.map((person) => ({
       id: `p${person.id}`,
+      group: "participants",
       name: `${person.firstName} ${person.lastName}`,
       role: "DALĪBNIEKS",
       organization: person.schoolName,
     })),
     ...data.leaders.map((person) => ({
       id: `l${person.id}`,
+      group: "leaders",
       name: person.fullName,
       role: person.role.toUpperCase(),
       organization: person.schoolName,
     })),
     ...data.judges.map((person) => ({
       id: `j${person.id}`,
+      group: "judges",
       name: person.fullName,
       role: "TIESNESIS",
       organization: person.sportName,
     })),
-  ];
+  ].filter((person) => group === "all" || person.group === group);
   return (
     <>
-      <PrintActions backHref="/admin" />
+      <PrintActions backHref="/admin" disabled={!people.length} />
+      <section className="no-print mx-auto mb-6 max-w-[210mm] px-4">
+        <h1 className="mb-4 text-3xl font-black">Akreditācijas kartes</h1>
+        <label className="form-label">Drukājamās kartes
+          <select className="form-control" value={group} onChange={(event) => setGroup(event.target.value as AccreditationGroup)}>
+            <option value="all">Visas akreditācijas ({data.participants.length + data.leaders.length + data.judges.length})</option>
+            <option value="participants">Dalībnieki ({data.participants.length})</option>
+            <option value="leaders">Komandu vadītāji ({data.leaders.length})</option>
+            <option value="judges">Tiesneši ({data.judges.length})</option>
+          </select>
+        </label>
+        <p className="mt-3 text-sm" role="status">Drukai atlasītas kartes: <strong>{people.length}</strong>. Katrai kartei ir priekšpuse un aizmugure.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Pieejamas apstiprināto skolu dalībnieku un vadītāju, kā arī aktīvo tiesnešu kartes.</p>
+      </section>
       <div className="no-print mx-auto mb-6 max-w-[210mm] rounded-xl bg-amber-50 p-4 text-amber-950">
         <strong>Testa akreditācijas karte</strong>
         <p>Parauga datums — 16. februāris — un programma vēl nav saskaņoti šim gadam.</p>
         <p>Katram cilvēkam sagatavota A6 priekšpuse un programmas aizmugure. Drukājiet A6 formātā, 100% mērogā, bez galvenēm un kājenēm. Divpusējai drukai izvēlieties apgriešanu gar garo malu.</p>
       </div>
-      {people.length === 0 && <p className="no-print p-8 text-center">Vēl nav dalībnieku, vadītāju vai tiesnešu, kuriem izveidot kartes.</p>}
+      {people.length === 0 && <p className="no-print p-8 text-center">Izvēlētajā grupā vēl nav cilvēku, kuriem izveidot kartes.</p>}
       <main className="accreditation-pages">
         <style>{`@media print { @page { size: A6 portrait; margin: 0; } }`}</style>
         {people.map((person) => (

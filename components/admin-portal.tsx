@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { ParticipantList } from "@/components/participant-list";
+import { TeamLeaderList, type ListedLeader } from "@/components/team-leader-list";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ type AdminData = {
     createdAt: string;
   }>;
   sports: Sport[];
+  leaders: ListedLeader[];
   judges: Array<{
     id: number;
     fullName: string;
@@ -190,6 +192,7 @@ export function AdminPortal() {
             Skolas
           </TabsTrigger>
           <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger>
+          <TabsTrigger value="leaders" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandu vadītāji</TabsTrigger>
           <TabsTrigger
             value="sports"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
@@ -210,6 +213,7 @@ export function AdminPortal() {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="participants"><ParticipantList /></TabsContent>
+        <TabsContent value="leaders"><TeamLeaderList leaders={data.leaders} /></TabsContent>
         <TabsContent value="schools">
           <SchoolsTable
             data={data}
@@ -226,6 +230,11 @@ export function AdminPortal() {
           />
         </TabsContent>
         <TabsContent value="judges">
+          <div className="mb-5 flex justify-end">
+            <Button asChild variant="outline">
+              <Link href="/admin/akreditacijas?group=judges"><Printer /> Tiesnešu akreditācijas</Link>
+            </Button>
+          </div>
           <JudgesSection
             data={data}
             add={async (payload) => action({ action: "add-judge", ...payload })}
