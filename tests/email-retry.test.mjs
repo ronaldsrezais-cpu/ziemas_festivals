@@ -138,13 +138,57 @@ test('configuration hides credentials and treats send-only domain access as unkn
   const config = emailConfiguration();
   assert.equal(config.readyToTest, true);
   assert.doesNotMatch(JSON.stringify(config), /re_unit_test_only/);
-  globalThis.fetch = async () => Response.json({}, { status: 403 });
+  globalThis.fetch = async () => Response.json({ name: 'restricted_api_key' }, { status: 401 });
   assert.equal((await checkEmailConfiguration()).level, 'warning');
   globalThis.fetch = async () => Response.json({ data: [{ name: 'example.test', status: 'verified', capabilities: { sending: 'enabled' } }] });
   assert.equal((await checkEmailConfiguration()).level, 'success');
   state.env.EMAIL_FROM = 'Invalid\r\nBcc: another@example.test';
   assert.equal(emailConfiguration().readyToTest, false);
   assert.equal((await checkEmailConfiguration()).level, 'error');
+});
+
+for (const scenario of [
+  { status: 401, name: 'restricted_api_key', level: 'warning', domainMessage: /tikai sūtīšanai/, deliveryMessage: /Emails/ },
+  { status: 403, name: 'invalid_permission', level: 'warning', domainMessage: /tiesību/, deliveryMessage: /Emails/ },
+  { status: 401, name: 'validation_error', level: 'error', domainMessage: /RESEND_API_KEY/, deliveryMessage: /RESEND_API_KEY/ },
+  { status: 403, name: 'restricted_api_key', level: 'error', domainMessage: /nav aktīva/, deliveryMessage: /nav aktīva/ },
+  { status: 403, name: 'suspended_api_key', level: 'error', domainMessage: /apturēta/, deliveryMessage: /apturēta/ },
+  { status: 403, name: 'unknown_error', level: 'error', domainMessage: /HTTP 403/, deliveryMessage: /HTTP 403/ },
+]) {
+  test(`read checks classify ${scenario.status} ${scenario.name} without sending or exposing credentials`, async () => {
+    state.emails[0].providerId = 'mock-email'; state.emails[0].status = 'sent';
+    state.emails[0].deliveryStatus = 'delivered';
+    const before = structuredClone(state.emails);
+    let reads = 0;
+    globalThis.fetch = async (url, options) => {
+      assert.equal(options.method, undefined);
+      assert.ok(['https://api.resend.com/domains?limit=100', 'https://api.resend.com/emails/mock-email'].includes(url));
+      reads++;
+      return Response.json({ name: scenario.name, message: `Private: ${state.env.RESEND_API_KEY}` }, { status: scenario.status });
+    };
+    const configuration = await checkEmailConfiguration();
+    const delivery = await checkEmailDelivery(1);
+    assert.equal(configuration.level, scenario.level);
+    assert.equal(delivery.level, scenario.level);
+    assert.match(configuration.message, scenario.domainMessage);
+    assert.match(delivery.message, scenario.deliveryMessage);
+    assert.doesNotMatch(JSON.stringify({ configuration, delivery }), /Private:|re_unit_test_only/);
+    assert.deepEqual(state.emails, before);
+    assert.equal(reads, 2);
+    assert.equal(requests.length, 0);
+  });
+}
+
+test('unreadable provider errors remain safe errors instead of claiming successful verification', async () => {
+  state.emails[0].providerId = 'mock-email';
+  for (const body of ['not JSON: re_unit_test_only', 'null']) {
+    globalThis.fetch = async () => new Response(body, { status: 503 });
+    for (const result of [await checkEmailConfiguration(), await checkEmailDelivery(1)]) {
+      assert.equal(result.level, 'error');
+      assert.match(result.message, /HTTP 503/);
+      assert.doesNotMatch(result.message, /re_unit_test_only/);
+    }
+  }
 });
 
 test('delivery is recorded only after provider retrieval and sends no email', async () => {

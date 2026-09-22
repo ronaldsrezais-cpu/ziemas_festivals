@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { runtimeEnv } from "@/lib/runtime";
+import { resendReadError } from "@/lib/resend-errors";
 
 export function emailConfiguration() {
   const env = runtimeEnv();
@@ -38,8 +39,7 @@ export async function checkEmailConfiguration(): Promise<EmailCheck> {
         headers: { Authorization: `Bearer ${runtimeEnv().RESEND_API_KEY?.trim()}` },
         signal: AbortSignal.timeout(10_000), cache: "no-store",
       });
-      if (response.status === 403) return { level: "warning", message: "Ar šo atslēgu nevar nolasīt Resend domēnus. Tā var būt paredzēta tikai sūtīšanai. Pārbaudiet domēna statusu Resend vai nosūtiet izmēģinājuma vēstuli." };
-      if (!response.ok) return { level: "error", message: response.status === 401 ? "Resend noraida API atslēgu. Pārbaudiet RESEND_API_KEY un veiciet Redeploy." : `Resend pārbaude neizdevās (HTTP ${response.status}). Mēģiniet vēlāk.` };
+      if (!response.ok) return await resendReadError(response, "domains");
       const body = await response.json() as { data?: Array<{ id: string; name: string; status: string; capabilities?: { sending?: string } }>; has_more?: boolean };
       const found = body.data?.find(item => item.name.toLowerCase() === domain);
       if (found) return found.status === "verified" && found.capabilities?.sending !== "disabled"

@@ -7,6 +7,7 @@ import { accessCodeHash, createAccessCode, sha256 } from "@/lib/security";
 import { recoverSchoolAccessCode } from "@/lib/school-access-code";
 import { deliveryLabels } from "@/lib/email-status";
 import { configurationProblem, emailConfiguration, type EmailCheck } from "@/lib/email-configuration";
+import { resendReadError } from "@/lib/resend-errors";
 import { EMAIL_TEMPLATE_KEY, readEmailTemplate, renderApprovalEmail, sampleEmailContext, type EmailTemplate } from "@/lib/email-template";
 
 function snapshot(template: EmailTemplate, context: Parameters<typeof renderApprovalEmail>[1]) {
@@ -153,8 +154,7 @@ export async function checkEmailDelivery(mailId: number): Promise<EmailCheck> {
     const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(mail.providerId)}`, {
       headers: { Authorization: `Bearer ${runtimeEnv().RESEND_API_KEY!.trim()}` }, signal: AbortSignal.timeout(10_000), cache: "no-store",
     });
-    if (response.status === 403) return { level: "warning", message: "Atslēgai nav tiesību nolasīt piegādes datus. Vēstules statusu skatiet Resend sadaļā Emails; saņēmējs var pārbaudīt arī nevēlamā pasta mapi." };
-    if (!response.ok) return { level: "error", message: `Piegādes pārbaude neizdevās (HTTP ${response.status}). Mēģiniet vēlāk vai skatiet Resend.` };
+    if (!response.ok) return await resendReadError(response, "delivery");
     const data = await response.json() as { last_event?: string };
     const status = data.last_event;
     if (!status || !Object.hasOwn(deliveryLabels, status)) return { level: "warning", message: "Resend vēl nav zināms piegādes statuss. Atkārtojiet pārbaudi vēlāk." };
