@@ -134,6 +134,4 @@ export async function destroySession() {
   jar.delete("zf_session");
 }
 
-export function requiredLeaders(participantCount: number) {
-  return Math.max(1, Math.ceil(participantCount / 10));
-}
+export { requiredLeaders } from "./roster-readiness";

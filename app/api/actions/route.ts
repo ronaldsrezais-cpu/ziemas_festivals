@@ -15,11 +15,12 @@ import {
   sports,
   uploads,
 } from "@/db/schema";
-import { sendApprovalEmail } from "@/lib/email";
+import { approveSchool, resendApprovalEmail } from "@/lib/email";
+import { mutateSchoolRoster } from "@/lib/school-roster";
+import { rosterReadiness } from "@/lib/roster-readiness";
 import { runtimeEnv } from "@/lib/runtime";
 import {
   accessCodeHash,
-  createAccessCode,
   createSession,
   destroySession,
   getSession,
@@ -41,26 +42,6 @@ const schoolRegistrationSchema = z.object({
   phone: z.string().trim().min(6).max(40),
 });
 
-const participantSchema = z.object({
-  id: z.number().int().positive().optional(),
-  firstName: z.string().trim().min(2).max(80),
-  lastName: z.string().trim().min(2).max(100),
-  birthYear: z.number().int().min(2000).max(2030),
-  gender: z.enum(["F", "M"]),
-  registrations: z
-    .array(
-      z.object({
-        categoryId: z.number().int().positive(),
-        teamName: z.string().trim().max(80).optional(),
-      }),
-    )
-    .min(1)
-    .refine(
-      (items) =>
-        new Set(items.map((item) => item.categoryId)).size === items.length,
-      "Vienu kategoriju vienam dalībniekam drīkst izvēlēties tikai vienu reizi.",
-    ),
-});
 
 function message(error: unknown) {
   if (error instanceof z.ZodError)
@@ -185,7 +166,7 @@ async function schoolView(schoolId: number) {
     .where(eq(schools.id, schoolId))
     .limit(1);
   if (!school) throw new Error("Skola nav atrasta.");
-  const [leaderRows, participantRows, entryRows, sportRows] = await Promise.all(
+  const [leaderRows, participantRows, entryRows, sportRows, editingRows] = await Promise.all(
     [
       db
         .select()
@@ -208,15 +189,19 @@ async function schoolView(schoolId: number) {
         .where(eq(entries.schoolId, schoolId))
         .orderBy(asc(entries.id)),
       getSportsWithCategories(),
+      db.select().from(settings).where(eq(settings.key, "roster_editing_open")),
     ],
   );
   return {
-    school,
+    school: { ...school, accessCodeHash: undefined },
     leaders: leaderRows,
     participants: participantRows,
     entries: entryRows,
     sports: sportRows,
     requiredLeaders: requiredLeaders(participantRows.length),
+    rosterEditable: editingRows[0]?.value !== "false" && school.status === "approved",
+    readiness: rosterReadiness(participantRows.length, leaderRows.length, school.rosterSubmittedAt,
+      participantRows.filter(person => !entryRows.some(entry => entry.participantId === person.id)).length),
   };
 }
 
@@ -230,9 +215,9 @@ async function adminView() {
     sportRows,
     categoryRows,
     judgeRows,
-    outboxRows,
     settingRows,
     codeMessages,
+    entryRows,
   ] = await Promise.all([
     db.select().from(schools).orderBy(desc(schools.createdAt)),
     db.select().from(leaders),
@@ -253,19 +238,24 @@ async function adminView() {
       .from(judges)
       .innerJoin(sports, eq(judges.sportId, sports.id))
       .orderBy(asc(sports.name), asc(judges.fullName)),
-    db
-      .select()
-      .from(emailOutbox)
-      .orderBy(desc(emailOutbox.createdAt))
-      .limit(20),
     db.select().from(settings),
     db.selectDistinctOn([emailOutbox.schoolId], {
+      id: emailOutbox.id,
       schoolId: emailOutbox.schoolId,
       body: emailOutbox.body,
+      recipient: emailOutbox.recipient,
+      status: emailOutbox.status,
+      error: emailOutbox.error,
+      createdAt: emailOutbox.createdAt,
+      sentAt: emailOutbox.sentAt,
+      lastAttemptAt: emailOutbox.lastAttemptAt,
+      attemptCount: emailOutbox.attemptCount,
     }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
+    db.select({ participantId: entries.participantId }).from(entries),
   ]);
   const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
   const schoolById = new Map(schoolRows.map((school) => [school.id, school]));
+  const registeredIds = new Set(entryRows.map(entry => entry.participantId));
   const adminSchools = await Promise.all(schoolRows.map(async (school) => {
     const { accessCodeHash: currentHash, ...details } = school;
     return {
@@ -278,6 +268,12 @@ async function adminView() {
       ).length,
       leaderCount: leaderRows.filter((leader) => leader.schoolId === school.id)
         .length,
+      readiness: rosterReadiness(
+        participantRows.filter(person => person.schoolId === school.id).length,
+        leaderRows.filter(leader => leader.schoolId === school.id).length,
+        school.rosterSubmittedAt,
+        participantRows.filter(person => person.schoolId === school.id && !registeredIds.has(person.id)).length,
+      ),
     };
   }));
   return {
@@ -303,7 +299,14 @@ async function adminView() {
       ),
     })),
     judges: judgeRows,
-    outbox: outboxRows,
+    outbox: codeMessages.map(mail => ({
+      id: mail.id, schoolId: mail.schoolId, recipient: mail.recipient, status: mail.status,
+      error: mail.error, createdAt: mail.createdAt, sentAt: mail.sentAt,
+      lastAttemptAt: mail.lastAttemptAt, attemptCount: mail.attemptCount,
+      schoolName: schoolById.get(mail.schoolId ?? -1)?.name ?? "Skola vairs nav pieejama",
+      canRetry: adminSchools.some(school => school.id === mail.schoolId && school.status === "approved" && Boolean(school.accessCode)),
+    })).sort((a, b) => b.id - a.id),
+    emailConfigured: Boolean(runtimeEnv().RESEND_API_KEY && runtimeEnv().EMAIL_FROM),
     settings: Object.fromEntries(
       settingRows.map((row) => [row.key, row.value]),
     ),
@@ -480,82 +483,6 @@ export async function GET(request: Request) {
   }
 }
 
-async function validateRegistrations(
-  input: z.infer<typeof participantSchema>,
-  schoolId: number,
-) {
-  const db = getDb();
-  const ids = input.registrations.map(
-    (registration) => registration.categoryId,
-  );
-  const rows = await db
-    .select({ category: categories, sportMode: sports.mode })
-    .from(categories)
-    .innerJoin(sports, eq(categories.sportId, sports.id))
-    .where(and(inArray(categories.id, ids), eq(categories.active, true)));
-  if (rows.length !== new Set(ids).size)
-    throw new Error("Kāda no izvēlētajām disciplīnām nav pieejama.");
-  const existingEntries = await db
-    .select({
-      participantId: entries.participantId,
-      categoryId: entries.categoryId,
-      teamName: entries.teamName,
-    })
-    .from(entries)
-    .where(
-      and(eq(entries.schoolId, schoolId), inArray(entries.categoryId, ids)),
-    );
-  const otherEntries = existingEntries.filter(
-    (entry) => entry.participantId !== input.id,
-  );
-  for (const row of rows) {
-    if (
-      input.birthYear < row.category.minBirthYear ||
-      input.birthYear > row.category.maxBirthYear
-    )
-      throw new Error(
-        `${row.category.name}: dzimšanas gads neatbilst kategorijai.`,
-      );
-    if (row.category.gender !== "X" && row.category.gender !== input.gender)
-      throw new Error(`${row.category.name}: dzimums neatbilst kategorijai.`);
-    const registration = input.registrations.find(
-      (item) => item.categoryId === row.category.id,
-    );
-    if (row.sportMode === "team" && !registration?.teamName)
-      throw new Error(`${row.category.name}: jānorāda komandas nosaukums.`);
-    const categoryEntries = otherEntries.filter(
-      (entry) => entry.categoryId === row.category.id,
-    );
-    if (row.sportMode === "team" && registration?.teamName) {
-      const teamSize = categoryEntries.filter(
-        (entry) => entry.teamName === registration.teamName,
-      ).length;
-      if (teamSize >= row.category.teamMax)
-        throw new Error(
-          `${row.category.name}: komandā drīkst būt ne vairāk kā ${row.category.teamMax} dalībnieki.`,
-        );
-      if (row.category.schoolLimit) {
-        const teams = new Set(
-          categoryEntries.map((entry) => entry.teamName).filter(Boolean),
-        );
-        teams.add(registration.teamName);
-        if (teams.size > row.category.schoolLimit)
-          throw new Error(
-            `${row.category.name}: skola drīkst pieteikt ne vairāk kā ${row.category.schoolLimit} komandas.`,
-          );
-      }
-    }
-    if (
-      row.sportMode === "individual" &&
-      row.category.schoolLimit &&
-      categoryEntries.length >= row.category.schoolLimit
-    )
-      throw new Error(
-        `${row.category.name}: skola drīkst pieteikt ne vairāk kā ${row.category.schoolLimit} dalībniekus.`,
-      );
-  }
-}
-
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as Record<string, unknown>;
@@ -651,141 +578,19 @@ export async function POST(request: Request) {
           .where(eq(schools.id, schoolId));
         return Response.json({ ok: true });
       }
-      const code = createAccessCode();
-      const codeHash = await accessCodeHash(code);
-      const [school] = await db
-        .update(schools)
-        .set({
-          status: "approved",
-          approvedAt: new Date().toISOString(),
-          accessCodeHash: codeHash,
-        })
-        .where(eq(schools.id, schoolId))
-        .returning();
-      if (!school) throw new Error("Skola nav atrasta.");
-      const email = await sendApprovalEmail({
-        schoolId: school.id,
-        recipient: school.email,
-        schoolName: school.name,
-        accessCode: code,
-      });
-      return Response.json({ ok: true, code, emailSent: email.sent });
+      return Response.json(await approveSchool(schoolId));
     }
 
-    if (
-      action === "add-leader" ||
-      action === "delete-leader" ||
-      action === "save-participant" ||
-      action === "delete-participant"
-    ) {
+    if (action === "resend-approval") {
+      const session = await getSession("admin");
+      if (!session) return Response.json({ error: "Nav atļauts." }, { status: 401 });
+      return Response.json(await resendApprovalEmail(z.number().int().positive().parse(payload.schoolId)));
+    }
+
+    if (["add-leader", "delete-leader", "save-participant", "delete-participant", "submit-roster"].includes(action)) {
       const session = await getSession("school");
-      if (!session)
-        return Response.json({ error: "Nav atļauts." }, { status: 401 });
-      if (action === "add-leader") {
-        const data = z
-          .object({
-            fullName: z.string().trim().min(3),
-            role: z.string().trim().min(2),
-            email: z.string().trim().email().optional().or(z.literal("")),
-            phone: z.string().trim().optional(),
-          })
-          .parse(payload);
-        const [leader] = await db
-          .insert(leaders)
-          .values({ schoolId: session.subjectId, ...data })
-          .returning();
-        return Response.json({ leader });
-      }
-      if (action === "delete-leader") {
-        const leaderId = z.number().int().positive().parse(payload.leaderId);
-        await db
-          .delete(leaders)
-          .where(
-            and(
-              eq(leaders.id, leaderId),
-              eq(leaders.schoolId, session.subjectId),
-            ),
-          );
-        return Response.json({ ok: true });
-      }
-      if (action === "delete-participant") {
-        const participantId = z
-          .number()
-          .int()
-          .positive()
-          .parse(payload.participantId);
-        await db
-          .update(participants)
-          .set({ active: false })
-          .where(
-            and(
-              eq(participants.id, participantId),
-              eq(participants.schoolId, session.subjectId),
-            ),
-          );
-        await db
-          .delete(entries)
-          .where(
-            and(
-              eq(entries.participantId, participantId),
-              eq(entries.schoolId, session.subjectId),
-            ),
-          );
-        return Response.json({ ok: true });
-      }
-      const data = participantSchema.parse(payload);
-      await validateRegistrations(data, session.subjectId);
-      let participantId = data.id;
-      if (participantId) {
-        const [existing] = await db
-          .select({ id: participants.id })
-          .from(participants)
-          .where(
-            and(
-              eq(participants.id, participantId),
-              eq(participants.schoolId, session.subjectId),
-            ),
-          )
-          .limit(1);
-        if (!existing)
-          return Response.json(
-            { error: "Dalībnieks nav atrasts." },
-            { status: 404 },
-          );
-        await db
-          .update(participants)
-          .set({
-            firstName: data.firstName,
-            lastName: data.lastName,
-            birthYear: data.birthYear,
-            gender: data.gender,
-          })
-          .where(eq(participants.id, participantId));
-        await db
-          .delete(entries)
-          .where(eq(entries.participantId, participantId));
-      } else {
-        const [created] = await db
-          .insert(participants)
-          .values({
-            schoolId: session.subjectId,
-            firstName: data.firstName,
-            lastName: data.lastName,
-            birthYear: data.birthYear,
-            gender: data.gender,
-          })
-          .returning();
-        participantId = created.id;
-      }
-      await db.insert(entries).values(
-        data.registrations.map((registration) => ({
-          schoolId: session.subjectId,
-          participantId: participantId!,
-          categoryId: registration.categoryId,
-          teamName: registration.teamName || null,
-        })),
-      );
-      return Response.json({ ok: true, participantId });
+      if (!session) return Response.json({ error: "Nav atļauts." }, { status: 401 });
+      return Response.json(await mutateSchoolRoster(session.subjectId, action, payload));
     }
 
     if (
@@ -821,10 +626,13 @@ export async function POST(request: Request) {
             key: z.enum([
               "festival_year",
               "registration_open",
+              "roster_editing_open",
               "participants_public",
             ]),
             value: z.string().max(80),
           })
+          .refine(data => data.key === "festival_year" || ["true", "false"].includes(data.value),
+            "Slēdža vērtībai jābūt true vai false.")
           .parse(payload);
         await db
           .insert(settings)

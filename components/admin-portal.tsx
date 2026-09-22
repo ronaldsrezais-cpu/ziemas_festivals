@@ -13,6 +13,8 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { EmailOutbox, type OutboxItem } from "@/components/email-outbox";
+import type { RosterReadiness } from "@/lib/roster-readiness";
 import { ParticipantList } from "@/components/participant-list";
 import { TeamLeaderList, type ListedLeader } from "@/components/team-leader-list";
 import { PageHeading } from "@/components/site-shell";
@@ -63,6 +65,8 @@ type AdminData = {
     participantCount: number;
     leaderCount: number;
     createdAt: string;
+    rosterSubmittedAt: string | null;
+    readiness: RosterReadiness;
   }>;
   sports: Sport[];
   leaders: ListedLeader[];
@@ -73,13 +77,8 @@ type AdminData = {
     sportId: number;
     active: boolean;
   }>;
-  outbox: Array<{
-    id: number;
-    recipient: string;
-    status: string;
-    createdAt: string;
-    error: string | null;
-  }>;
+  outbox: OutboxItem[];
+  emailConfigured: boolean;
   settings: Record<string, string>;
 };
 
@@ -88,8 +87,8 @@ export function AdminPortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (!refresh) setLoading(true);
     const response = await fetch("/api/actions?view=admin");
     if (response.status === 401) {
       setData(null);
@@ -113,7 +112,7 @@ export function AdminPortal() {
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error ?? "Neizdevās saglabāt.");
-    await load();
+    await load(true);
     return body;
   }
   if (loading)
@@ -131,7 +130,7 @@ export function AdminPortal() {
     try {
       const body = await action({ action: "approve-school", schoolId });
       setNotice(
-        `Skola apstiprināta. Piekļuves kods: ${body.code}. ${body.emailSent ? "E-pasts nosūtīts." : "E-pasts ievietots nosūtīšanas rindā — kodu saglabājiet."}`,
+        `Skola apstiprināta. Piekļuves kods: ${body.code}. ${body.emailSent ? "E-pasts nodots nosūtīšanai." : `E-pasts nav nosūtīts. ${body.emailError ?? "Statusu un atkārtotu nosūtīšanu atradīsiet sadaļā “E-pasti”."}`}`,
       );
     } catch (reason) {
       setError(
@@ -205,6 +204,7 @@ export function AdminPortal() {
           >
             Tiesneši
           </TabsTrigger>
+          <TabsTrigger value="emails" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">E-pasti</TabsTrigger>
           <TabsTrigger
             value="settings"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
@@ -239,6 +239,10 @@ export function AdminPortal() {
             data={data}
             add={async (payload) => action({ action: "add-judge", ...payload })}
           />
+        </TabsContent>
+        <TabsContent value="emails">
+          <EmailOutbox items={data.outbox} configured={data.emailConfigured}
+            resend={async schoolId => action({ action: "resend-approval", schoolId })} refresh={() => load(true)} />
         </TabsContent>
         <TabsContent value="settings">
           <SettingsSection
@@ -332,6 +336,7 @@ function SchoolsTable({
               <th>Skola</th>
               <th>Kontaktpersona</th>
               <th>Dalībnieki / vadītāji</th>
+              <th>Komandas pieteikums</th>
               <th>Statuss</th>
               <th>Piekļuves kods</th>
               <th></th>
@@ -358,6 +363,12 @@ function SchoolsTable({
                 </td>
                 <td>
                   {school.participantCount} / {school.leaderCount}
+                </td>
+                <td>
+                  <strong className={school.readiness.submitted ? "text-emerald-800" : "text-amber-900"}>
+                    {school.readiness.submitted ? "Pabeigts" : school.readiness.canSubmit ? "Jāapstiprina sastāvs" : "Nepilnīgs"}
+                  </strong>
+                  {school.readiness.issues.map(issue => <p key={issue} className="mt-1 text-xs text-muted-foreground">{issue}</p>)}
                 </td>
                 <td>
                   <Status value={school.status} />
@@ -674,14 +685,15 @@ function JudgesSection({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const values = Object.fromEntries(new FormData(form));
     try {
       await add({
         sportId: Number(values.sportId),
         fullName: String(values.fullName),
         password: String(values.password),
       });
-      event.currentTarget.reset();
+      form.reset();
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Neizdevās saglabāt.",
@@ -761,6 +773,14 @@ function SettingsSection({
 }) {
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
+  const [settingError, setSettingError] = useState("");
+  const [savingSetting, setSavingSetting] = useState(false);
+  async function updateSetting(key: string, value: string) {
+    setSavingSetting(true); setSettingError("");
+    try { await save(key, value); }
+    catch (reason) { setSettingError(reason instanceof Error ? reason.message : "Neizdevās saglabāt iestatījumu."); }
+    finally { setSavingSetting(false); }
+  }
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUploading(true);
@@ -790,7 +810,7 @@ function SettingsSection({
             defaultValue={
               data.settings.festival_year ?? new Date().getFullYear()
             }
-            onBlur={(event) => save("festival_year", event.target.value)}
+            onBlur={(event) => updateSetting("festival_year", event.target.value)}
           />
         </label>
         <div className="mt-5 flex items-center justify-between rounded-2xl bg-[#f0f1ff] p-4">
@@ -801,11 +821,19 @@ function SettingsSection({
             </p>
           </div>
           <Switch
-            defaultChecked={data.settings.registration_open !== "false"}
+            checked={data.settings.registration_open !== "false"}
+            disabled={savingSetting}
             onCheckedChange={(value) =>
-              save("registration_open", String(value))
+              updateSetting("registration_open", String(value))
             }
           />
+        </div>
+        {settingError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-red-800">{settingError}</p>}
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl bg-[#f0f1ff] p-4">
+          <div><strong>Komandas sastāva labošana atvērta</strong>
+            <p className="text-sm text-[#65647b]">Atļaut apstiprinātajām skolām pievienot, labot un noņemt dalībniekus un vadītājus, kā arī pabeigt pieteikumu. Aizverot saraksti paliek apskatāmi.</p></div>
+          <Switch aria-label="Komandas sastāva labošana atvērta" checked={data.settings.roster_editing_open !== "false"}
+            disabled={savingSetting} onCheckedChange={value => updateSetting("roster_editing_open", String(value))} />
         </div>
         <div className="mt-3 flex items-center justify-between rounded-2xl bg-[#f0f1ff] p-4">
           <div>
@@ -815,9 +843,10 @@ function SettingsSection({
             </p>
           </div>
           <Switch
-            defaultChecked={data.settings.participants_public !== "false"}
+            checked={data.settings.participants_public !== "false"}
+            disabled={savingSetting}
             onCheckedChange={(value) =>
-              save("participants_public", String(value))
+              updateSetting("participants_public", String(value))
             }
           />
         </div>

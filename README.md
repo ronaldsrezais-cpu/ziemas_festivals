@@ -27,7 +27,7 @@ Pirms migrācijas aizpildiet `.env` vērtības. Lietotnei izmantojiet apvienoto 
 2. Vercel izvēlieties **Add New → Project**, importējiet repozitoriju un atstājiet Framework Preset kā **Next.js**.
 3. Vercel projektam pievienojiet Neon Postgres datubāzi un **Private** Vercel Blob glabātuvi. Integrācijas automātiski pievienos datubāzes un Blob savienojuma mainīgos.
 4. Vercel projekta Environment Variables sadaļā pievienojiet `AUTH_SECRET` un `ADMIN_PASSWORD`.
-5. Ja jānosūta apstiprinājuma e-pasti, pievienojiet `RESEND_API_KEY` un `EMAIL_FROM`. Bez tiem vēstule paliek administratora izsūtnes rindā un piekļuves kods ir redzams admina skatā.
+5. Ja jānosūta apstiprinājuma e-pasti, pievienojiet `RESEND_API_KEY` un `EMAIL_FROM`. Bez tiem vēstule tiek saglabāta administratora sadaļā **E-pasti**, un piekļuves kods ir redzams admina skatā. Pēc konfigurācijas un jaunas izvietošanas nospiediet **Nosūtīt atkārtoti**; automātiska gaidošo vēstuļu izsūtīšana nenotiek.
 6. Pārbaudiet migrāciju atsevišķā Neon zarā, pēc tam lokāli ar produkcijas `DATABASE_URL_UNPOOLED` palaidiet `npm run db:migrate` un Vercel veiciet **Deploy**.
 
 Drošas nejaušas atslēgas piemērs:
@@ -68,3 +68,17 @@ Bez `DATABASE_URL` sākumlapa rāda noformējumu un paziņojumu par vēl nepieej
 Sporta veidi un sākotnējās kategorijas tiek izveidotas automātiski pirmajā pieprasījumā. Administrators var koriģēt kategoriju dzimšanas gadu robežas, publicēšanas iestatījumus, izveidot tiesnešu piekļuves un augšupielādēt akreditācijas kartes fona attēlu.
 
 Rezultātu importā atbalstīti PDF, XLSX, CSV, TSV un TXT faili līdz 12 MB. Sistēma izveido priekšskatījumu; tiesnesim pirms saglabāšanas jāapstiprina automātiski identificētās rindas un vietas.
+
+## Komandas pieteikuma pabeigšana
+
+Skolas sadaļā **Pabeigt pieteikumu** pārbauda, vai ir vismaz viens dalībnieks, katram dalībniekam ir pieteikums sporta veidā un uz katriem 10 dalībniekiem ir vismaz viens vadītājs (11 dalībniekiem — divi, 21 — trīs). Pēc dalībnieku vai vadītāju izmaiņām pieteikums jāapstiprina vēlreiz. Administrators statusu un trūkumus redz skolu sarakstā.
+
+Administratora **Iestatījumos** ir divi atsevišķi slēdži: **Reģistrācija atvērta** regulē jaunu skolu pieteikumus; **Komandas sastāva labošana atvērta** regulē apstiprināto skolu dalībnieku/vadītāju izmaiņas un pieteikuma pabeigšanu. Aizverot labošanu, saraksti un drošības lapa paliek pieejami. Ierobežojumi darbojas arī API.
+
+Dalībnieka labošana saglabā nemainīto sporta pieteikumu identifikatorus un rezultātus. Nevar noņemt dalībnieku vai disciplīnu ar rezultātu, kā arī mainīt šāda pieteikuma komandu. Neveiksmīga pārbaude atceļ visas attiecīgā labojuma izmaiņas vienā datubāzes transakcijā.
+
+## Apstiprinājuma e-pasti
+
+Administratora sadaļā **E-pasti** redzama katras skolas pēdējā vēstule, tās statuss, kļūda un pēdējais sūtīšanas mēģinājums. **Nosūtīt atkārtoti** izmanto skolas esošo kodu. Vienlaicīgi mēģinājumi tiek aizsargāti pret dubultu nosūtīšanu, un neskaidra/neveiksmīga mēģinājuma atkārtojums izmanto to pašu Resend idempotences atslēgu. Jau pieņemtu vēstuli apzināti var nosūtīt vēlreiz pēc minūtes.
+
+**Nodots nosūtīšanai** nozīmē, ka Resend pieņēmis vēstuli, nevis apstiprinātu piegādi pastkastē. Piegādes statusu pārbauda Resend. Sūtītāja domēnam jābūt apstiprinātam Resend; piemēram, `EMAIL_FROM=Ziemas festivāls <ziemasfestivals@lsfp.lv>`.

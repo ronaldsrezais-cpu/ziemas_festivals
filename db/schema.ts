@@ -21,6 +21,7 @@ export const schools = pgTable(
     accessCodeHash: text("access_code_hash"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     approvedAt: text("approved_at"),
+    rosterSubmittedAt: text("roster_submitted_at"),
   },
   (table) => [
     uniqueIndex("idx_schools_name_municipality").on(table.name, table.municipality),
@@ -184,10 +185,12 @@ export const emailOutbox = pgTable(
     recipient: text("recipient").notNull(),
     subject: text("subject").notNull(),
     body: text("body").notNull(),
-    status: text("status", { enum: ["queued", "sent", "failed"] }).notNull().default("queued"),
+    status: text("status", { enum: ["queued", "sending", "sent", "failed"] }).notNull().default("queued"),
     error: text("error"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     sentAt: text("sent_at"),
+    lastAttemptAt: text("last_attempt_at"),
+    attemptCount: integer("attempt_count").notNull().default(0),
   },
   (table) => [index("idx_email_outbox_status").on(table.status)],
 );
