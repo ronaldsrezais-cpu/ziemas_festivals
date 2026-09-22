@@ -15,6 +15,7 @@ import {
   sports,
   uploads,
 } from "@/db/schema";
+import { emailConfiguration } from "@/lib/email-configuration";
 import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
 import { rosterReadiness } from "@/lib/roster-readiness";
@@ -250,6 +251,8 @@ async function adminView() {
       sentAt: emailOutbox.sentAt,
       lastAttemptAt: emailOutbox.lastAttemptAt,
       attemptCount: emailOutbox.attemptCount,
+      providerId: emailOutbox.providerId,
+      deliveryStatus: emailOutbox.deliveryStatus,
     }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
     db.select({ participantId: entries.participantId }).from(entries),
   ]);
@@ -303,10 +306,11 @@ async function adminView() {
       id: mail.id, schoolId: mail.schoolId, recipient: mail.recipient, status: mail.status,
       error: mail.error, createdAt: mail.createdAt, sentAt: mail.sentAt,
       lastAttemptAt: mail.lastAttemptAt, attemptCount: mail.attemptCount,
-      schoolName: schoolById.get(mail.schoolId ?? -1)?.name ?? "Skola vairs nav pieejama",
+      providerId: mail.providerId, deliveryStatus: mail.deliveryStatus,
+      schoolName: mail.schoolId === null ? "Izmēģinājuma vēstule" : schoolById.get(mail.schoolId)?.name ?? "Skola vairs nav pieejama",
       canRetry: adminSchools.some(school => school.id === mail.schoolId && school.status === "approved" && Boolean(school.accessCode)),
     })).sort((a, b) => b.id - a.id),
-    emailConfigured: Boolean(runtimeEnv().RESEND_API_KEY && runtimeEnv().EMAIL_FROM),
+    emailConfigured: emailConfiguration().readyToTest,
     settings: Object.fromEntries(
       settingRows.map((row) => [row.key, row.value]),
     ),

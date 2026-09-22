@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 const table = (name, keys) => Object.fromEntries([['_table', name], ...keys.map(key => [key, { key }])]);
 export const schools = table('schools', ['id', 'accessCodeHash']);
 export const emailOutbox = table('emails', ['id', 'schoolId', 'status', 'lastAttemptAt', 'attemptCount']);
-export const settings = table('settings', ['key']);
+export const settings = table('settings', ['key', 'updatedAt']);
 export const participants = table('participants', ['id', 'schoolId', 'active']);
 export const leaders = table('leaders', ['id', 'schoolId']);
 export const entries = table('entries', ['id', 'schoolId', 'participantId', 'categoryId']);
@@ -23,6 +23,7 @@ export const accessCodeHash = code => sha256(`${code.trim().toUpperCase()}:test-
 export const createAccessCode = () => 'ABCDEFGH';
 export const state = { schools: [], emails: [], settings: [], participants: [], leaders: [], entries: [], env: {} };
 export const runtimeEnv = () => state.env;
+export const getSession = async role => state.session?.role === role ? state.session : null;
 
 function matches(row, condition) {
   if (!condition) return true;
@@ -63,13 +64,29 @@ const db = {
     } }; } };
   },
   insert(table) {
-    return { values(value) { return { returning: async () => {
-      const rows = state[table._table];
-      const row = { id: Math.max(0, ...rows.map(item => item.id)) + 1, status: 'queued', error: null,
-        attemptCount: 0, sentAt: null, lastAttemptAt: null, ...value };
-      rows.push(row);
-      return [{ ...row }];
-    } }; } };
+    return { values(value) {
+      let conflict;
+      const apply = () => {
+        const rows = state[table._table];
+        const existing = conflict && rows.find(row => row[conflict.target.key] === value[conflict.target.key]);
+        if (existing) {
+          if (!matches(existing, conflict.setWhere)) return [];
+          Object.assign(existing, conflict.set);
+          return [{ ...existing }];
+        }
+        const row = { id: Math.max(0, ...rows.map(item => item.id ?? 0)) + 1, status: 'queued', error: null,
+          attemptCount: 0, sentAt: null, lastAttemptAt: null, html: null, sender: null, replyTo: null,
+          providerId: null, deliveryStatus: null, updatedAt: new Date().toISOString(), ...value };
+        rows.push(row);
+        return [{ ...row }];
+      };
+      const query = {
+        onConflictDoUpdate(value) { conflict = value; return query; },
+        returning: async () => apply(),
+        then: (resolve, reject) => Promise.resolve().then(apply).then(resolve, reject),
+      };
+      return query;
+    } };
   },
   delete(table) {
     return { where(condition) { return { returning: async () => {
@@ -91,8 +108,9 @@ export async function withTransaction(work) {
 }
 
 export async function resetEmailState() {
-  state.env = { RESEND_API_KEY: 'unit-test-only', EMAIL_FROM: 'Festival <noreply@example.test>' };
-  state.schools = [{ id: 1, name: 'Testa skola', email: 'teacher@example.test', status: 'approved',
+  state.settings = []; state.session = null;
+  state.env = { RESEND_API_KEY: 're_unit_test_only', EMAIL_FROM: 'Festival <noreply@example.test>' };
+  state.schools = [{ id: 1, name: 'Testa skola', teacherName: 'Testa skolotāja', email: 'teacher@example.test', status: 'approved',
     accessCodeHash: await accessCodeHash('ABCDEFGH') }];
   state.emails = [{ id: 1, schoolId: 1, recipient: 'teacher@example.test', subject: 'Apstiprinājums',
     body: 'Labdien!\nSkolas piekļuves kods: ABCDEFGH\n', status: 'queued', error: null,

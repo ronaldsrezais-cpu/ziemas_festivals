@@ -15,6 +15,13 @@
       "when": 1789986538318,
       "tag": "0001_hard_molecule_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790046888580,
+      "tag": "0002_chemical_colossus",
+      "breakpoints": true
     }
   ]
 }

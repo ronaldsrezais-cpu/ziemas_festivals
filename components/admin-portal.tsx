@@ -13,6 +13,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { EmailSettings } from "@/components/email-settings";
 import { EmailOutbox, type OutboxItem } from "@/components/email-outbox";
 import type { RosterReadiness } from "@/lib/roster-readiness";
 import { ParticipantList } from "@/components/participant-list";
@@ -240,7 +241,8 @@ export function AdminPortal() {
             add={async (payload) => action({ action: "add-judge", ...payload })}
           />
         </TabsContent>
-        <TabsContent value="emails">
+        <TabsContent value="emails" forceMount className="data-[state=inactive]:hidden">
+          <EmailSettings onOutboxChanged={() => load(true)} />
           <EmailOutbox items={data.outbox} configured={data.emailConfigured}
             resend={async schoolId => action({ action: "resend-approval", schoolId })} refresh={() => load(true)} />
         </TabsContent>

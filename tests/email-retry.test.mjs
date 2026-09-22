@@ -7,12 +7,15 @@ const adapter = new URL('./email-test-db.mjs', import.meta.url).href;
 const dependencies = new Set(['drizzle-orm', '@/db', '@/db/transaction', '@/db/schema', '@/lib/runtime', '@/lib/security']);
 const hooks = registerHooks({ resolve(specifier, context, next) {
   if (dependencies.has(specifier)) return { url: adapter, shortCircuit: true };
-  if (specifier === '@/lib/school-access-code') return {
-    url: new URL('../lib/school-access-code.ts', import.meta.url).href, shortCircuit: true,
+  if (specifier.startsWith('@/lib/')) return {
+    url: new URL('../' + specifier.slice(2) + '.ts', import.meta.url).href, shortCircuit: true,
   };
   return next(specifier, context);
 } });
-const { resendApprovalEmail, approveSchool } = await import('../lib/email.ts');
+const { resendApprovalEmail, approveSchool, sendTestEmail, checkEmailDelivery, attemptApprovalEmail } = await import('../lib/email.ts');
+const { defaultEmailTemplate } = await import('../lib/email-template.ts');
+const { checkEmailConfiguration, emailConfiguration } = await import('../lib/email-configuration.ts');
+const emailApi = await import('../app/api/email-settings/route.ts');
 hooks.deregister();
 
 const originalFetch = globalThis.fetch;
@@ -86,4 +89,103 @@ test('an obsolete code is never emailed or silently replaced', async () => {
   await assert.rejects(resendApprovalEmail(1), /kods nav pieejams/);
   assert.equal(state.schools[0].accessCodeHash, currentHash);
   assert.equal(requests.length, 0);
+});
+
+
+test('edited template uses HTML and personalized text while keeping the real access code recoverable', async () => {
+  state.settings = [{ key: 'approval_email_template', value: JSON.stringify({ ...defaultEmailTemplate, heading: 'Sveiki, {{skola}}!', subject: 'Dalība: {{skola}}' }) }];
+  await resendApprovalEmail(1);
+  assert.match(requests[0].payload.html, /Sveiki, Testa skola!/);
+  assert.match(requests[0].payload.text, /Testa skolotāja/);
+  assert.equal(requests[0].payload.subject, 'Dalība: Testa skola');
+  assert.equal(requests[0].payload.reply_to, 'ziemasfestivals@lsfp.lv');
+  assert.equal(state.emails[0].providerId, 'mock-email');
+  assert.equal(state.emails[0].deliveryStatus, undefined);
+});
+
+test('changing saved design and sender never changes a failed request snapshot', async () => {
+  status = 500;
+  await resendApprovalEmail(1);
+  state.settings = [{ key: 'approval_email_template', value: JSON.stringify({ ...defaultEmailTemplate, subject: 'Jauns temats', accentColor: '#ff4a4a' }) }];
+  state.env.EMAIL_FROM = 'Another <other@example.test>';
+  status = 200;
+  await resendApprovalEmail(1);
+  assert.deepEqual(requests[0], requests[1]);
+});
+
+test('legacy attempted plaintext email retries without adding HTML or reply-to', async () => {
+  state.emails[0].status = 'failed'; state.emails[0].attemptCount = 1;
+  await resendApprovalEmail(1);
+  assert.equal(requests[0].payload.html, undefined);
+  assert.equal(requests[0].payload.reply_to, undefined);
+  assert.equal(requests[0].payload.text, 'Labdien!\nSkolas piekļuves kods: ABCDEFGH\n');
+});
+
+test('test email uses only sample data, and concurrent requests send once', async () => {
+  const schoolsBefore = structuredClone(state.schools);
+  const outcomes = await Promise.allSettled([sendTestEmail(defaultEmailTemplate, 'admin@example.test'), sendTestEmail(defaultEmailTemplate, 'admin@example.test')]);
+  assert.equal(outcomes.filter(item => item.status === 'fulfilled').length, 1);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].payload.subject, /^\[IZMĒĢINĀJUMS\]/);
+  assert.match(requests[0].payload.text, /Skolas piekļuves kods: PARAUGS/);
+  assert.doesNotMatch(requests[0].payload.text, /ABCDEFGH|Testa skola/);
+  assert.deepEqual(state.schools, schoolsBefore);
+  assert.equal(state.emails[1].schoolId, null);
+  await assert.rejects(attemptApprovalEmail(state.emails[1].id), /neatbilst/);
+});
+
+test('configuration hides credentials and treats send-only domain access as unknown', async () => {
+  const config = emailConfiguration();
+  assert.equal(config.readyToTest, true);
+  assert.doesNotMatch(JSON.stringify(config), /re_unit_test_only/);
+  globalThis.fetch = async () => Response.json({}, { status: 403 });
+  assert.equal((await checkEmailConfiguration()).level, 'warning');
+  globalThis.fetch = async () => Response.json({ data: [{ name: 'example.test', status: 'verified', capabilities: { sending: 'enabled' } }] });
+  assert.equal((await checkEmailConfiguration()).level, 'success');
+  state.env.EMAIL_FROM = 'Invalid\r\nBcc: another@example.test';
+  assert.equal(emailConfiguration().readyToTest, false);
+  assert.equal((await checkEmailConfiguration()).level, 'error');
+});
+
+test('delivery is recorded only after provider retrieval and sends no email', async () => {
+  state.emails[0].providerId = 'mock-email'; state.emails[0].status = 'sent';
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'https://api.resend.com/emails/mock-email');
+    assert.equal(options.method, undefined);
+    return Response.json({ last_event: 'delivered', html: 'private message' });
+  };
+  const result = await checkEmailDelivery(1);
+  assert.equal(result.level, 'success');
+  assert.equal(state.emails[0].deliveryStatus, 'delivered');
+  assert.doesNotMatch(JSON.stringify(result), /private message/);
+  assert.equal(requests.length, 0);
+});
+
+test('email settings and sending endpoints require an administrator', async () => {
+  for (const role of [undefined, 'school', 'judge']) {
+    state.session = role ? { role } : null;
+    assert.equal((await emailApi.GET()).status, 401);
+    const response = await emailApi.POST(new Request('https://festival.test/api/email-settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'send-test', template: defaultEmailTemplate, recipient: 'admin@example.test' }) }));
+    assert.equal(response.status, 401);
+  }
+  assert.equal(requests.length, 0);
+});
+
+test('admin editor persists valid template, rejects unsafe input and cross-origin posts', async () => {
+  state.session = { role: 'admin' };
+  const makeRequest = (template, origin = 'https://festival.test') => new Request('https://festival.test/api/email-settings', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify({ action: 'save-template', template }) });
+  assert.equal((await emailApi.POST(makeRequest({ ...defaultEmailTemplate, subject: 'Jauns temats' }))).status, 200);
+  assert.equal((await (await emailApi.GET()).json()).template.subject, 'Jauns temats');
+  assert.equal((await emailApi.POST(makeRequest({ ...defaultEmailTemplate, message: '{{slepena_vertiba}}' }))).status, 400);
+  assert.equal((await emailApi.POST(makeRequest(defaultEmailTemplate, 'https://unrelated.test'))).status, 403);
+  assert.equal(requests.length, 0);
+});
+
+test('same-site admin requests work when Next.js has an internal proxy URL', async () => {
+  state.session = { role: 'admin' };
+  const response = await emailApi.POST(new Request('http://localhost:3000/api/email-settings', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://festival.test', Host: 'festival.test' },
+    body: JSON.stringify({ action: 'save-template', template: defaultEmailTemplate }),
+  }));
+  assert.equal(response.status, 200);
 });
