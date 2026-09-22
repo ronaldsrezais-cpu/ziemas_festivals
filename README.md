@@ -82,3 +82,7 @@ Dalībnieka labošana saglabā nemainīto sporta pieteikumu identifikatorus un r
 Administratora sadaļā **E-pasti** redzama katras skolas pēdējā vēstule, tās statuss, kļūda un pēdējais sūtīšanas mēģinājums. **Nosūtīt atkārtoti** izmanto skolas esošo kodu. Vienlaicīgi mēģinājumi tiek aizsargāti pret dubultu nosūtīšanu, un neskaidra/neveiksmīga mēģinājuma atkārtojums izmanto to pašu Resend idempotences atslēgu. Jau pieņemtu vēstuli apzināti var nosūtīt vēlreiz pēc minūtes.
 
 **Nodots nosūtīšanai** nozīmē, ka Resend pieņēmis vēstuli, nevis apstiprinātu piegādi pastkastē. Piegādes statusu pārbauda Resend. Sūtītāja domēnam jābūt apstiprinātam Resend; piemēram, `EMAIL_FROM=Ziemas festivāls <ziemasfestivals@lsfp.lv>`.
+
+## Pārbaudes
+
+Ar Node.js 24 palaidiet `node --test tests/*.test.mjs`, `npm run lint` un `npm run build`. E-pastu un pieteikumu darbību testos izmantota izolēta datu glabātuve un imitēts Resend — tie nepieslēdzas īstajai datubāzei un nesūta vēstules. Pilnu datubāzes plūsmu pārbaudiet atsevišķā Neon zarā.
