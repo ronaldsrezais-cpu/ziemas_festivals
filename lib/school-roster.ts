@@ -1,8 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withTransaction, type Transaction } from "@/db/transaction";
 import { categories, entries, leaders, participants, results, schools, settings, sports } from "@/db/schema";
 import { rosterReadiness } from "./roster-readiness";
+import { numberedTeam } from "./team-registration";
 
 export const participantSchema = z.object({
   id: z.number().int().positive().optional(),
@@ -12,6 +13,7 @@ export const participantSchema = z.object({
   gender: z.enum(["F", "M"]),
   registrations: z.array(z.object({
     categoryId: z.number().int().positive(),
+    teamNumber: z.number().int().positive().optional(),
     teamName: z.string().trim().max(80).optional(),
   })).min(1).refine(items => new Set(items.map(item => item.categoryId)).size === items.length,
     "Vienu kategoriju vienam dalībniekam drīkst izvēlēties tikai vienu reizi."),
@@ -36,15 +38,18 @@ async function validateRegistrations(tx: Transaction, input: ParticipantInput, s
     const registration = input.registrations.find(item => item.categoryId === category.id)!;
     const categoryEntries = otherEntries.filter(entry => entry.categoryId === category.id);
     if (sportMode === "team") {
-      if (!registration.teamName) throw new Error(`${category.name}: jānorāda komandas nosaukums.`);
+      const previous = existing.find(entry => entry.participantId === input.id && entry.categoryId === category.id);
+      registration.teamName = numberedTeam(existing.filter(entry => entry.categoryId === category.id), registration.teamNumber, previous?.teamName);
       if (categoryEntries.filter(entry => entry.teamName === registration.teamName).length >= category.teamMax)
         throw new Error(`${category.name}: komandā drīkst būt ne vairāk kā ${category.teamMax} dalībnieki.`);
       const teams = new Set(categoryEntries.map(entry => entry.teamName).filter(Boolean));
       teams.add(registration.teamName);
       if (category.schoolLimit && teams.size > category.schoolLimit)
         throw new Error(`${category.name}: skola drīkst pieteikt ne vairāk kā ${category.schoolLimit} komandas.`);
-    } else if (category.schoolLimit && categoryEntries.length >= category.schoolLimit) {
-      throw new Error(`${category.name}: skola drīkst pieteikt ne vairāk kā ${category.schoolLimit} dalībniekus.`);
+    } else {
+      registration.teamName = "";
+      if (category.schoolLimit && categoryEntries.length >= category.schoolLimit)
+        throw new Error(`${category.name}: skola drīkst pieteikt ne vairāk kā ${category.schoolLimit} dalībniekus.`);
     }
   }
 }
@@ -64,12 +69,12 @@ async function saveParticipant(tx: Transaction, schoolId: number, data: Particip
   const scoredRows = previous.length ? await tx.select({ entryId: results.entryId }).from(results)
     .where(inArray(results.entryId, previous.map(entry => entry.id))) : [];
   const scoredIds = new Set(scoredRows.map(row => row.entryId));
+  await validateRegistrations(tx, data, schoolId);
   for (const entry of previous) {
     const next = data.registrations.find(registration => registration.categoryId === entry.categoryId);
     if (scoredIds.has(entry.id) && (!next || (next.teamName || null) !== entry.teamName))
       throw new Error("Disciplīnu vai komandu ar ievadītu rezultātu nevar mainīt vai noņemt. Sazinieties ar organizatoru.");
   }
-  await validateRegistrations(tx, data, schoolId);
   const details = { firstName: data.firstName, lastName: data.lastName, birthYear: data.birthYear, gender: data.gender };
   if (participantId) {
     await tx.update(participants).set(details).where(eq(participants.id, participantId));
@@ -152,7 +157,7 @@ export async function mutateSchoolRoster(schoolId: number, action: string, paylo
       throw new Error("Nezināma darbība.");
     }
     // Any successful roster change requires the school to confirm it again.
-    await tx.update(schools).set({ rosterSubmittedAt: null }).where(eq(schools.id, schoolId));
+    await tx.update(schools).set({ rosterSubmittedAt: null, rosterRevision: sql`${schools.rosterRevision} + 1` }).where(eq(schools.id, schoolId));
     return response;
   });
 }

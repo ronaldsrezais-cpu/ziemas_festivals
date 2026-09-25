@@ -14,7 +14,11 @@ import {
   settings,
   sports,
   uploads,
+  safetyDocuments,
 } from "@/db/schema";
+import { safetyStatus } from "@/lib/safety-document";
+import { deleteJudgeRecord, deleteSchoolApplication } from "@/lib/delete-records";
+import { sameOrigin } from "@/lib/request-origin";
 import { emailConfiguration } from "@/lib/email-configuration";
 import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
@@ -149,7 +153,7 @@ async function publicView() {
     .orderBy(asc(sports.sortOrder), asc(judges.fullName));
   return {
     sports: sportRows,
-    schools: schoolRows,
+    schools: schoolRows.map(school => ({ ...school, participantCount: participantRows.filter(person => person.schoolId === school.id).length })),
     participants: participantsPublic ? participantRows : [],
     participantsPublic,
     participantCount: participantRows.length,
@@ -167,7 +171,7 @@ async function schoolView(schoolId: number) {
     .where(eq(schools.id, schoolId))
     .limit(1);
   if (!school) throw new Error("Skola nav atrasta.");
-  const [leaderRows, participantRows, entryRows, sportRows, editingRows] = await Promise.all(
+  const [leaderRows, participantRows, entryRows, sportRows, editingRows, documentRows] = await Promise.all(
     [
       db
         .select()
@@ -191,10 +195,12 @@ async function schoolView(schoolId: number) {
         .orderBy(asc(entries.id)),
       getSportsWithCategories(),
       db.select().from(settings).where(eq(settings.key, "roster_editing_open")),
+      db.select().from(safetyDocuments).where(eq(safetyDocuments.schoolId, schoolId)),
     ],
   );
   return {
     school: { ...school, accessCodeHash: undefined },
+    safetyDocument: documentRows[0] ? { id: documentRows[0].id, fileName: documentRows[0].fileName, createdAt: documentRows[0].createdAt, status: safetyStatus(documentRows[0], school.rosterRevision) } : null,
     leaders: leaderRows,
     participants: participantRows,
     entries: entryRows,
@@ -219,6 +225,7 @@ async function adminView() {
     settingRows,
     codeMessages,
     entryRows,
+    documentRows,
   ] = await Promise.all([
     db.select().from(schools).orderBy(desc(schools.createdAt)),
     db.select().from(leaders),
@@ -255,6 +262,7 @@ async function adminView() {
       deliveryStatus: emailOutbox.deliveryStatus,
     }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
     db.select({ participantId: entries.participantId }).from(entries),
+    db.select().from(safetyDocuments),
   ]);
   const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
   const schoolById = new Map(schoolRows.map((school) => [school.id, school]));
@@ -263,6 +271,7 @@ async function adminView() {
     const { accessCodeHash: currentHash, ...details } = school;
     return {
       ...details,
+      safetyDocument: (() => { const doc = documentRows.find(document => document.schoolId === school.id); return doc ? { id: doc.id, fileName: doc.fileName, createdAt: doc.createdAt, status: safetyStatus(doc, school.rosterRevision) } : null; })(),
       accessCode: school.status === "approved" && runtimeEnv().AUTH_SECRET
         ? await recoverSchoolAccessCode(codeBodies.get(school.id), currentHash, accessCodeHash)
         : null,
@@ -488,6 +497,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: "Nav atļauts." }, { status: 403 });
   try {
     const payload = (await request.json()) as Record<string, unknown>;
     const action = String(payload.action ?? "");
@@ -589,6 +599,18 @@ export async function POST(request: Request) {
       const session = await getSession("admin");
       if (!session) return Response.json({ error: "Nav atļauts." }, { status: 401 });
       return Response.json(await resendApprovalEmail(z.number().int().positive().parse(payload.schoolId)));
+    }
+
+    if (action === "delete-school") {
+      if (!await getSession("admin")) return Response.json({ error: "Nav atļauts." }, { status: 401 });
+      const data = z.object({ schoolId: z.number().int().positive(), confirmation: z.string() }).parse(payload);
+      return Response.json(await deleteSchoolApplication(data.schoolId, data.confirmation));
+    }
+    if (action === "delete-result" || action === "delete-upload") {
+      const session = await getSession("judge");
+      if (!session) return Response.json({ error: "Nav atļauts." }, { status: 401 });
+      const id = z.number().int().positive().parse(payload.id);
+      return Response.json(await deleteJudgeRecord(session.subjectId, action === "delete-result" ? "result" : "upload", id));
     }
 
     if (["add-leader", "delete-leader", "save-participant", "delete-participant", "submit-roster"].includes(action)) {
@@ -694,7 +716,7 @@ export async function POST(request: Request) {
       const [judge] = await db
         .select()
         .from(judges)
-        .where(eq(judges.id, session.subjectId))
+        .where(and(eq(judges.id, session.subjectId), eq(judges.active, true)))
         .limit(1);
       if (!judge)
         return Response.json(
@@ -745,6 +767,10 @@ export async function POST(request: Request) {
           { error: "Dalībnieks nav pieejams šim sporta veidam." },
           { status: 403 },
         );
+      if (data.sourceUploadId) {
+        const [source] = await db.select({ id: uploads.id }).from(uploads).where(and(eq(uploads.id, data.sourceUploadId), eq(uploads.sportId, judge.sportId))).limit(1);
+        if (!source) return Response.json({ error: "Avota fails nepieder šim sporta veidam." }, { status: 403 });
+      }
       await db
         .insert(results)
         .values({

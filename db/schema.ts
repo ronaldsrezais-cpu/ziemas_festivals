@@ -22,6 +22,7 @@ export const schools = pgTable(
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     approvedAt: text("approved_at"),
     rosterSubmittedAt: text("roster_submitted_at"),
+    rosterRevision: integer("roster_revision").notNull().default(0),
   },
   (table) => [
     uniqueIndex("idx_schools_name_municipality").on(table.name, table.municipality),
@@ -43,6 +44,17 @@ export const leaders = pgTable(
   },
   (table) => [index("idx_leaders_school_id").on(table.schoolId)],
 );
+
+export const safetyDocuments = pgTable("safety_documents", {
+  id: serial("id").primaryKey(),
+  schoolId: integer("school_id").notNull().references(() => schools.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  objectKey: text("object_key").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(),
+  rosterRevision: integer("roster_revision").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table => [uniqueIndex("idx_safety_documents_school").on(table.schoolId)]);
 
 export const participants = pgTable(
   "participants",

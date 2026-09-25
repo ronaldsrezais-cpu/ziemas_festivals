@@ -12,9 +12,11 @@ import {
   ShieldCheck,
   Upload,
   X,
+  Trash2,
 } from "lucide-react";
 import { EmailSettings } from "@/components/email-settings";
 import { EmailOutbox, type OutboxItem } from "@/components/email-outbox";
+import type { SafetyDocument } from "@/components/safety-upload";
 import type { RosterReadiness } from "@/lib/roster-readiness";
 import { ParticipantList } from "@/components/participant-list";
 import { TeamLeaderList, type ListedLeader } from "@/components/team-leader-list";
@@ -68,6 +70,7 @@ type AdminData = {
     createdAt: string;
     rosterSubmittedAt: string | null;
     readiness: RosterReadiness;
+    safetyDocument: SafetyDocument | null;
   }>;
   sports: Sport[];
   leaders: ListedLeader[];
@@ -219,6 +222,12 @@ export function AdminPortal() {
           <SchoolsTable
             data={data}
             approve={approve}
+            remove={async school => {
+              const confirmation = prompt(`Neatgriezeniski dzēst “${school.name}”, tās ${school.participantCount} dalībniekus, ${school.leaderCount} vadītājus, pieteikumus, rezultātus un drošības lapu? Lai apstiprinātu, ievadiet precīzu skolas nosaukumu.`);
+              if (confirmation === null) return;
+              try { await action({ action: "delete-school", schoolId: school.id, confirmation }); setNotice("Skolas pieteikums izdzēsts."); }
+              catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās izdzēst."); }
+            }}
             reject={async (schoolId) =>
               action({ action: "reject-school", schoolId })
             }
@@ -324,9 +333,11 @@ function SchoolsTable({
   data,
   approve,
   reject,
+  remove,
 }: {
   data: AdminData;
   approve: (id: number) => void;
+  remove: (school: AdminData["schools"][number]) => Promise<void>;
   reject: (id: number) => Promise<unknown>;
 }) {
   return (
@@ -339,6 +350,7 @@ function SchoolsTable({
               <th>Kontaktpersona</th>
               <th>Dalībnieki / vadītāji</th>
               <th>Komandas pieteikums</th>
+              <th>Drošības lapa</th>
               <th>Statuss</th>
               <th>Piekļuves kods</th>
               <th></th>
@@ -373,6 +385,10 @@ function SchoolsTable({
                   {school.readiness.issues.map(issue => <p key={issue} className="mt-1 text-xs text-muted-foreground">{issue}</p>)}
                 </td>
                 <td>
+                  <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : "text-amber-900"}>{school.safetyDocument?.status === "submitted" ? "Iesniegts" : school.safetyDocument ? "Jāatjauno — sastāvs mainīts" : "Nav iesniegts"}</strong>
+                  {school.safetyDocument && <><a className="mt-1 block break-all text-xs text-primary underline" href={`/api/safety-documents/${school.safetyDocument.id}`}>{school.safetyDocument.fileName}</a><span className="text-xs text-muted-foreground">{new Date(school.safetyDocument.createdAt).toLocaleString("lv-LV")}</span></>}
+                </td>
+                <td>
                   <Status value={school.status} />
                 </td>
                 <td>
@@ -380,6 +396,7 @@ function SchoolsTable({
                 </td>
                 <td>
                   <div className="flex justify-end gap-1">
+                    <Button size="sm" variant="outline" className="text-red-700" onClick={() => remove(school)} aria-label={`Dzēst skolas pieteikumu: ${school.name}`}><Trash2 /> Dzēst</Button>
                     {school.status !== "approved" && (
                       <Button
                         size="sm"

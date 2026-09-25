@@ -1,9 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { schoolStatusLabel } from "@/lib/participant-list";
 
 export type ListedLeader = {
@@ -35,9 +32,7 @@ export function TeamLeaderList({ leaders }: { leaders: ListedLeader[] }) {
         <h2 className="text-xl font-black">Komandu vadītāju saraksts</h2>
         <p className="mt-1 text-sm text-muted-foreground" role="status">Atlasīti: {filtered.length} no {leaders.length} vadītājiem</p>
       </div>
-      <Button asChild variant="outline">
-        <Link href="/admin/akreditacijas?group=leaders"><Printer /> Vadītāju akreditācijas</Link>
-      </Button>
+
     </div>
     <div className="mb-5 grid gap-3 sm:grid-cols-2">
       <label className="form-label">Meklēt vadītāju

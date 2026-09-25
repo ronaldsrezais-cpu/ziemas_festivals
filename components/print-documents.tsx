@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 
 type PrintData = {
   school: { name: string; municipality: string };
+  entries: Array<{ participantId: number; categoryId: number }>;
+  sports: Array<{ name: string; categories: Array<{ id: number; discipline: string; name: string }> }>;
   leaders: Array<{ id: number; fullName: string; role: string }>;
   participants: Array<{ id: number; firstName: string; lastName: string }>;
 };
@@ -94,7 +96,7 @@ export function SafetySheet() {
             <tr className="bg-[#0c0942] text-white">
               <th className="border p-2 text-left">Nr.</th>
               <th className="border p-2 text-left">Vārds, uzvārds</th>
-              <th className="w-48 border p-2 text-left">Paraksts</th>
+              <th className="w-64 border p-2 text-left">Sporta veids / disciplīna</th>
             </tr>
           </thead>
           <tbody>
@@ -104,7 +106,7 @@ export function SafetySheet() {
                 <td className="border p-2 font-bold">
                   {person.firstName} {person.lastName}
                 </td>
-                <td className="border p-2">&nbsp;</td>
+                <td className="border p-2">{data.entries.filter(entry => entry.participantId === person.id).map(entry => { const sport = data.sports.find(item => item.categories.some(category => category.id === entry.categoryId)); const category = sport?.categories.find(item => item.id === entry.categoryId); return <div key={entry.categoryId}>{sport?.name} — {category?.discipline ?? category?.name ?? "Disciplīna"}</div>; })}</td>
               </tr>
             ))}
           </tbody>
@@ -133,6 +135,11 @@ export function SafetySheet() {
             ))}
           </tbody>
         </table>
+        <section className="mt-10 break-inside-avoid text-sm">
+          <p className="font-bold">Skolas atbildīgās personas apliecinājums</p>
+          <p className="mt-7">Vārds, uzvārds: __________________________________________________</p>
+          <p className="mt-8">Paraksts: _____________________________ Datums: __________________</p>
+        </section>
       </main>
     </>
   );

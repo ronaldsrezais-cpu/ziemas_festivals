@@ -7,8 +7,8 @@ const adapter = new URL('./email-test-db.mjs', import.meta.url).href;
 const hooks = registerHooks({ resolve(specifier, context, next) {
   if (['drizzle-orm', '@/db/transaction', '@/db/schema'].includes(specifier))
     return { url: adapter, shortCircuit: true };
-  if (specifier === './roster-readiness')
-    return { url: new URL('../lib/roster-readiness.ts', import.meta.url).href, shortCircuit: true };
+  if (['./roster-readiness', './team-registration'].includes(specifier))
+    return { url: new URL('../lib/' + specifier.slice(2) + '.ts', import.meta.url).href, shortCircuit: true };
   return next(specifier, context);
 } });
 const { mutateSchoolRoster } = await import('../lib/school-roster.ts');

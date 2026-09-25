@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 
 const table = (name, keys) => Object.fromEntries([['_table', name], ...keys.map(key => [key, { key }])]);
-export const schools = table('schools', ['id', 'accessCodeHash']);
+export const schools = table('schools', ['id', 'accessCodeHash', 'rosterRevision']);
 export const emailOutbox = table('emails', ['id', 'schoolId', 'status', 'lastAttemptAt', 'attemptCount']);
 export const settings = table('settings', ['key', 'updatedAt']);
 export const participants = table('participants', ['id', 'schoolId', 'active']);
@@ -10,7 +10,11 @@ export const leaders = table('leaders', ['id', 'schoolId']);
 export const entries = table('entries', ['id', 'schoolId', 'participantId', 'categoryId']);
 export const categories = table('categories', ['id', 'sportId', 'active']);
 export const sports = table('sports', ['id']);
-export const results = table('results', ['entryId']);
+export const results = table('results', ['id', 'entryId', 'categoryId']);
+export const safetyDocuments = table('documents', ['id', 'schoolId']);
+export const judges = table('judges', ['id', 'active', 'sportId']);
+export const uploads = table('uploads', ['id', 'sportId']);
+export const sessions = table('sessions', ['role', 'subjectId']);
 export const eq = (field, value) => ({ op: 'eq', field, value });
 export const inArray = (field, value) => ({ op: 'in', field, value });
 export const lt = (field, value) => ({ op: 'lt', field, value });
@@ -23,7 +27,7 @@ export const accessCodeHash = code => sha256(`${code.trim().toUpperCase()}:test-
 export const createAccessCode = () => 'ABCDEFGH';
 export const state = { schools: [], emails: [], settings: [], participants: [], leaders: [], entries: [], env: {} };
 export const runtimeEnv = () => state.env;
-export const getSession = async role => state.session?.role === role ? state.session : null;
+export const getSession = async role => state.session && (!role || state.session.role === role) ? state.session : null;
 
 function matches(row, condition) {
   if (!condition) return true;
@@ -89,11 +93,14 @@ const db = {
     } };
   },
   delete(table) {
-    return { where(condition) { return { returning: async () => {
-      const removed = state[table._table].filter(row => matches(row, condition));
-      state[table._table] = state[table._table].filter(row => !matches(row, condition));
-      return removed;
-    } }; } };
+    return { where(condition) {
+      const apply = () => {
+        const removed = state[table._table].filter(row => matches(row, condition));
+        state[table._table] = state[table._table].filter(row => !matches(row, condition));
+        return removed;
+      };
+      return { returning: async () => apply(), then: (resolve, reject) => Promise.resolve().then(apply).then(resolve, reject) };
+    } };
   },
 };
 
@@ -108,9 +115,9 @@ export async function withTransaction(work) {
 }
 
 export async function resetEmailState() {
-  state.settings = []; state.session = null;
+  state.settings = []; state.session = null; state.documents = []; state.judges = []; state.uploads = [];
   state.env = { RESEND_API_KEY: 're_unit_test_only', EMAIL_FROM: 'Festival <noreply@example.test>' };
-  state.schools = [{ id: 1, name: 'Testa skola', teacherName: 'Testa skolotāja', email: 'teacher@example.test', status: 'approved',
+  state.schools = [{ id: 1, rosterRevision: 0, name: 'Testa skola', teacherName: 'Testa skolotāja', email: 'teacher@example.test', status: 'approved',
     accessCodeHash: await accessCodeHash('ABCDEFGH') }];
   state.emails = [{ id: 1, schoolId: 1, recipient: 'teacher@example.test', subject: 'Apstiprinājums',
     body: 'Labdien!\nSkolas piekļuves kods: ABCDEFGH\n', status: 'queued', error: null,

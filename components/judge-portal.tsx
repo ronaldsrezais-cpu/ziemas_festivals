@@ -10,6 +10,7 @@ import {
   LogOut,
   Save,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { previewResultMatches } from "@/lib/result-import";
 import { ParticipantList } from "@/components/participant-list";
@@ -47,6 +48,7 @@ type Result = {
   score: string | null;
   sourceUploadId: number | null;
   published: boolean;
+  updatedAt: string;
 };
 type JudgeData = {
   judge: { id: number; fullName: string; sportId: number; sportName: string };
@@ -74,8 +76,8 @@ export function JudgePortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (!refresh) setLoading(true);
     const response = await fetch("/api/actions?view=judge");
     if (response.status === 401) {
       setData(null);
@@ -115,9 +117,14 @@ export function JudgePortal() {
   async function publish() {
     if (!confirm("Publicēt visus saglabātos šī sporta veida rezultātus?"))
       return;
-    await action({ action: "publish-sport" });
-    setNotice("Rezultāti publicēti publiskajā lapā.");
-    await load();
+    try { await action({ action: "publish-sport" }); setNotice("Rezultāti publicēti publiskajā lapā."); await load(true); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās publicēt."); }
+  }
+  async function remove(kind: "result" | "upload", id: number, label: string) {
+    const explanation = kind === "upload" ? "Ievadītie rezultāti saglabāsies; saite uz failu tiks noņemta." : "Rezultāts tiks noņemts arī no publiskās lapas un kopvērtējuma. Dalībnieka pieteikums saglabāsies.";
+    if (!confirm(`Dzēst ${label}? ${explanation}`)) return;
+    try { await action({ action: kind === "upload" ? "delete-upload" : "delete-result", id }); setNotice(kind === "upload" ? "Fails izdzēsts. Rezultāti saglabāti." : "Rezultāts izdzēsts."); await load(true); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās izdzēst."); }
   }
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
@@ -155,35 +162,37 @@ export function JudgePortal() {
           <CheckCircle2 /> Publicēt rezultātus
         </Button>
       </div>
-      <Tabs defaultValue="manual">
-        <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white">
-          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger>
+      <Tabs defaultValue="participants">
+        <TabsList className="mb-6 h-auto w-full flex-wrap justify-start rounded-2xl bg-[#0c0942] p-1.5 text-white">
+          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Reģistrētie dalībnieki</TabsTrigger>
           <TabsTrigger
             value="manual"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
-            Manuāla ievade
+            Rezultātu ievade
           </TabsTrigger>
           <TabsTrigger
             value="import"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
-            Importēt failu
+            Rezultātu imports
           </TabsTrigger>
           <TabsTrigger
             value="files"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
-            Faili
+            Pievienotie faili
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="participants"><ParticipantList /></TabsContent>
+        <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas, laikus un punktus ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
         <TabsContent value="manual">
+          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">Katram dalībniekam ievadiet vietu, laiku vai punktus un saglabājiet. Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
           <ManualResults
             data={data}
+            remove={(result, entry) => remove("result", result.id, `${entry.firstName} ${entry.lastName} rezultātu`)}
             save={async (payload) => {
               await action({ action: "save-result", ...payload });
-              await load();
+              await load(true);
             }}
           />
         </TabsContent>
@@ -195,7 +204,7 @@ export function JudgePortal() {
             }
             finished={async (message) => {
               setNotice(message);
-              await load();
+              await load(true);
             }}
           />
         </TabsContent>
@@ -206,15 +215,15 @@ export function JudgePortal() {
                 <tr>
                   <th>Fails</th>
                   <th>Statuss</th>
-                  <th>Augšupielādēts</th>
+                  <th>Augšupielādēts</th><th>Darbības</th>
                 </tr>
               </thead>
               <tbody>
                 {data.uploads.map((file) => (
                   <tr key={file.id}>
-                    <td className="font-black">{file.fileName}</td>
-                    <td>{file.status}</td>
-                    <td>{new Date(file.createdAt).toLocaleString("lv-LV")}</td>
+                    <td className="font-black"><a href={`/api/files/${file.id}`} target="_blank" rel="noreferrer" className="underline">{file.fileName}</a></td>
+                    <td>{file.status === "published" ? "Publicēts" : "Saglabāts"}</td>
+                    <td>{new Date(file.createdAt).toLocaleString("lv-LV")}</td><td><Button size="sm" variant="outline" className="text-red-700" onClick={() => remove("upload", file.id, file.fileName)}><Trash2 /> Dzēst failu</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -317,8 +326,10 @@ function JudgeLogin({
 function ManualResults({
   data,
   save,
+  remove,
 }: {
   data: JudgeData;
+  remove: (result: Result, entry: Entry) => Promise<void>;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   return (
@@ -352,12 +363,13 @@ function ManualResults({
                   .filter((entry) => entry.categoryId === category.id)
                   .map((entry) => (
                     <ManualRow
-                      key={entry.entryId}
+                      key={`${entry.entryId}:${data.results.find(result => result.entryId === entry.entryId)?.updatedAt ?? "new"}`}
                       entry={entry}
                       result={data.results.find(
                         (result) => result.entryId === entry.entryId,
                       )}
                       save={save}
+                      remove={remove}
                     />
                   ))}
               </tbody>
@@ -378,9 +390,11 @@ function ManualRow({
   entry,
   result,
   save,
+  remove,
 }: {
   entry: Entry;
   result?: Result;
+  remove: (result: Result, entry: Entry) => Promise<void>;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [placement, setPlacement] = useState(
@@ -390,17 +404,18 @@ function ManualRow({
     result?.status ?? "ranked",
   );
   const [score, setScore] = useState(result?.score ?? "");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit() {
-    setBusy(true);
-    await save({
+    setBusy(true); setError("");
+    try { await save({
       categoryId: entry.categoryId,
       entryId: entry.entryId,
       placement: placement ? Number(placement) : null,
       status,
       score,
-    });
-    setBusy(false);
+    }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās saglabāt."); }
+    finally { setBusy(false); }
   }
   return (
     <tr>
@@ -414,7 +429,7 @@ function ManualRow({
           </div>
         )}
       </td>
-      <td>{entry.schoolName}</td>
+      <td>{entry.schoolName}<p className="mt-1 text-xs text-muted-foreground">{result ? result.published ? "Rezultāts publicēts" : "Rezultāts saglabāts" : "Rezultāts nav ievadīts"}</p></td>
       <td>
         <input
           className="form-control w-20"
@@ -448,12 +463,15 @@ function ManualRow({
       <td>
         <Button
           size="sm"
+          aria-label={`Saglabāt rezultātu: ${entry.firstName} ${entry.lastName}`}
           onClick={submit}
           disabled={busy}
           className="bg-[#0c0942]"
         >
           {busy ? <Loader2 className="animate-spin" /> : <Save />}
         </Button>
+        {result && <Button size="icon-sm" variant="ghost" className="ml-1 text-red-700" disabled={busy} aria-label={`Dzēst rezultātu: ${entry.firstName} ${entry.lastName}`} onClick={() => remove(result, entry)}><Trash2 /></Button>}
+        {error && <p role="alert" className="mt-2 max-w-48 text-sm text-red-800">{error}</p>}
       </td>
     </tr>
   );

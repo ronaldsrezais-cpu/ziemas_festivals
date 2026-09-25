@@ -14,7 +14,7 @@ type PublicData = {
     mode: "individual" | "team";
     categories: Array<{ id: number; name: string }>;
   }>;
-  schools: Array<{ id: number; name: string; municipality: string }>;
+  schools: Array<{ id: number; name: string; municipality: string; participantCount: number }>;
   participants: Array<{
     id: number;
     firstName: string;
@@ -339,11 +339,9 @@ function Participants({
                 <h2 className="text-xl font-black">{item.name}</h2>
                 <p className="text-sm text-[#65647b]">{item.municipality}</p>
               </div>
-              {participantsPublic && (
-                <span className="rounded-full bg-[#e9ecff] px-3 py-1 text-sm font-black text-[#2910bf]">
-                  {schoolParticipants.length} dalībnieki
-                </span>
-              )}
+              <span className="rounded-full bg-[#e9ecff] px-3 py-1 text-sm font-black text-[#2910bf]">
+                  Reģistrēti dalībnieki: {item.participantCount}
+              </span>
             </div>
             {participantsPublic ? (
               <div className="overflow-x-auto">
