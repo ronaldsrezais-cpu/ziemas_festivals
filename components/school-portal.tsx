@@ -65,6 +65,7 @@ export function SchoolPortal() {
       <div>
         <h2 className="text-xl font-black">Komandas pieteikums: {data.readiness.submitted ? "pabeigts" : "nav pabeigts"}</h2>
         <p className="mt-2 text-sm text-muted-foreground">Katrs saglabātais dalībnieks jau ir reģistrēts. Ar pogu “Pabeigt pieteikumu” apstipriniet, ka sastāvs ir gatavs. Pēc izmaiņām tas jāapstiprina vēlreiz.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Drošības lapas augšupielāde nav obligāta pieteikuma pabeigšanai. Parakstīto lapu var iesniegt arī klātienē.</p>
         {data.readiness.issues.length > 0 && <ul className="mt-2 list-inside list-disc text-sm text-amber-900">{data.readiness.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
         {data.readiness.canSubmit && !data.readiness.submitted && <p className="mt-2 text-sm">Pārbaudiet ievadīto sastāvu un nospiediet “Pabeigt pieteikumu”.</p>}
       </div>

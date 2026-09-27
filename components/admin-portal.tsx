@@ -342,6 +342,7 @@ function SchoolsTable({
 }) {
   return (
     <div className="glass-panel overflow-hidden rounded-3xl">
+      <p className="border-b px-5 py-3 text-sm text-muted-foreground">Drošības lapas ailē redzama elektroniskā iesniegšana. Parakstīto lapu var iesniegt arī klātienē; augšupielāde nav obligāta pieteikuma pabeigšanai.</p>
       <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
@@ -350,7 +351,7 @@ function SchoolsTable({
               <th>Kontaktpersona</th>
               <th>Dalībnieki / vadītāji</th>
               <th>Komandas pieteikums</th>
-              <th>Drošības lapa</th>
+              <th>Drošības lapa (elektroniski)</th>
               <th>Statuss</th>
               <th>Piekļuves kods</th>
               <th></th>
@@ -385,7 +386,7 @@ function SchoolsTable({
                   {school.readiness.issues.map(issue => <p key={issue} className="mt-1 text-xs text-muted-foreground">{issue}</p>)}
                 </td>
                 <td>
-                  <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : "text-amber-900"}>{school.safetyDocument?.status === "submitted" ? "Iesniegts" : school.safetyDocument ? "Jāatjauno — sastāvs mainīts" : "Nav iesniegts"}</strong>
+                  <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : school.safetyDocument ? "text-amber-900" : "text-muted-foreground"}>{school.safetyDocument?.status === "submitted" ? "Iesniegta elektroniski" : school.safetyDocument ? "Iesniegta elektroniski — sastāvs mainīts" : "Elektroniski nav iesniegta"}</strong>
                   {school.safetyDocument && <><a className="mt-1 block break-all text-xs text-primary underline" href={`/api/safety-documents/${school.safetyDocument.id}`}>{school.safetyDocument.fileName}</a><span className="text-xs text-muted-foreground">{new Date(school.safetyDocument.createdAt).toLocaleString("lv-LV")}</span></>}
                 </td>
                 <td>
