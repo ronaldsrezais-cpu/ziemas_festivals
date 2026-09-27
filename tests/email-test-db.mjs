@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 
 const table = (name, keys) => Object.fromEntries([['_table', name], ...keys.map(key => [key, { key }])]);
-export const schools = table('schools', ['id', 'accessCodeHash', 'rosterRevision']);
+export const schools = table('schools', ['id', 'name', 'municipality', 'accessCodeHash', 'rosterRevision']);
 export const emailOutbox = table('emails', ['id', 'schoolId', 'status', 'lastAttemptAt', 'attemptCount']);
 export const settings = table('settings', ['key', 'updatedAt']);
 export const participants = table('participants', ['id', 'schoolId', 'active']);

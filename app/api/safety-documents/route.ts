@@ -57,5 +57,5 @@ export async function PUT(request: Request) {
     // A failed cleanup must not turn a successful submission into an error.
     if (previousKey && previousKey !== input.url) await del(previousKey, { token: process.env.BLOB_READ_WRITE_TOKEN?.trim() }).catch(() => undefined);
     return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
-  } catch { return Response.json({ error: "Neizdevās iesniegt drošības lapu. Pārbaudiet failu un atjaunojiet lapu — iespējams, komandas sastāvs ir mainījies." }, { status: 400 }); }
+  } catch { return Response.json({ error: "Neizdevās iesniegt drošības lapu. Pārbaudiet failu un atjaunojiet lapu — iespējams, skolas dati vai komandas sastāvs ir mainīts." }, { status: 400 }); }
 }

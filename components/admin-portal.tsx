@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmailSettings } from "@/components/email-settings";
+import { SchoolNameEditor } from "@/components/school-name-editor";
 import { EmailOutbox, type OutboxItem } from "@/components/email-outbox";
 import type { SafetyDocument } from "@/components/safety-upload";
 import type { RosterReadiness } from "@/lib/roster-readiness";
@@ -222,6 +223,7 @@ export function AdminPortal() {
           <SchoolsTable
             data={data}
             approve={approve}
+            rename={async (schoolId, name, previousName) => { await action({ action: "rename-school", schoolId, name, previousName }); setNotice("Skolas nosaukums saglabāts."); }}
             remove={async school => {
               const confirmation = prompt(`Neatgriezeniski dzēst “${school.name}”, tās ${school.participantCount} dalībniekus, ${school.leaderCount} vadītājus, pieteikumus, rezultātus un drošības lapu? Lai apstiprinātu, ievadiet precīzu skolas nosaukumu.`);
               if (confirmation === null) return;
@@ -334,11 +336,13 @@ function SchoolsTable({
   approve,
   reject,
   remove,
+  rename,
 }: {
   data: AdminData;
   approve: (id: number) => void;
   remove: (school: AdminData["schools"][number]) => Promise<void>;
   reject: (id: number) => Promise<unknown>;
+  rename: (schoolId: number, name: string, previousName: string) => Promise<unknown>;
 }) {
   return (
     <div className="glass-panel overflow-hidden rounded-3xl">
@@ -365,6 +369,7 @@ function SchoolsTable({
                   <div className="text-xs text-[#65647b]">
                     {school.municipality}
                   </div>
+                  <div className="mt-2"><SchoolNameEditor name={school.name} onSave={(name, previousName) => rename(school.id, name, previousName)} /></div>
                 </td>
                 <td>
                   {school.teacherName}
@@ -386,7 +391,7 @@ function SchoolsTable({
                   {school.readiness.issues.map(issue => <p key={issue} className="mt-1 text-xs text-muted-foreground">{issue}</p>)}
                 </td>
                 <td>
-                  <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : school.safetyDocument ? "text-amber-900" : "text-muted-foreground"}>{school.safetyDocument?.status === "submitted" ? "Iesniegta elektroniski" : school.safetyDocument ? "Iesniegta elektroniski — sastāvs mainīts" : "Elektroniski nav iesniegta"}</strong>
+                  <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : school.safetyDocument ? "text-amber-900" : "text-muted-foreground"}>{school.safetyDocument?.status === "submitted" ? "Iesniegta elektroniski" : school.safetyDocument ? "Iesniegta elektroniski — skolas dati vai sastāvs mainīts" : "Elektroniski nav iesniegta"}</strong>
                   {school.safetyDocument && <><a className="mt-1 block break-all text-xs text-primary underline" href={`/api/safety-documents/${school.safetyDocument.id}`}>{school.safetyDocument.fileName}</a><span className="text-xs text-muted-foreground">{new Date(school.safetyDocument.createdAt).toLocaleString("lv-LV")}</span></>}
                 </td>
                 <td>

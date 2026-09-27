@@ -22,6 +22,7 @@ import { sameOrigin } from "@/lib/request-origin";
 import { emailConfiguration } from "@/lib/email-configuration";
 import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
+import { renameSchool, schoolNameSchema, SchoolNameError } from "@/lib/school-profile";
 import { rosterReadiness } from "@/lib/roster-readiness";
 import { runtimeEnv } from "@/lib/runtime";
 import {
@@ -39,7 +40,7 @@ import { getSportsWithCategories } from "@/lib/sport-seed";
 export const dynamic = "force-dynamic";
 
 const schoolRegistrationSchema = z.object({
-  name: z.string().trim().min(2).max(180),
+  name: schoolNameSchema,
   municipality: z.enum(municipalityOptions, { errorMap: () => ({ message: "Izvēlieties novadu vai valstspilsētu no saraksta." }) }),
   teacherName: z.string().trim().min(3).max(120),
   teacherRole: z.string().trim().min(2).max(120),
@@ -601,6 +602,10 @@ export async function POST(request: Request) {
       return Response.json(await resendApprovalEmail(z.number().int().positive().parse(payload.schoolId)));
     }
 
+    if (action === "rename-school") {
+      return Response.json(await renameSchool(await getSession(), payload));
+    }
+
     if (action === "delete-school") {
       if (!await getSession("admin")) return Response.json({ error: "Nav atļauts." }, { status: 401 });
       const data = z.object({ schoolId: z.number().int().positive(), confirmation: z.string() }).parse(payload);
@@ -799,6 +804,6 @@ export async function POST(request: Request) {
 
     return Response.json({ error: "Nezināma darbība." }, { status: 400 });
   } catch (error) {
-    return Response.json({ error: message(error) }, { status: 400 });
+    return Response.json({ error: message(error) }, { status: error instanceof SchoolNameError ? error.status : 400 });
   }
 }

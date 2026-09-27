@@ -41,7 +41,7 @@ export function SafetyUpload({ schoolId, revision, document, onSaved }: {
     <p className="mt-2 text-sm text-muted-foreground">Lejupielādējiet drošības lapu, parakstiet un iesniedziet elektroniski šeit vai klātienē. Augšupielāde nav obligāta pieteikuma pabeigšanai.</p>
     <p className="mt-2 text-sm text-muted-foreground">Elektroniskai iesniegšanai pieņemam PDF vai EDOC failus līdz 12 MB. Dokumentu redzēs jūsu skola un administrators. Augšupielāde ir pieejama arī pēc sastāva labošanas slēgšanas.</p>
     <p role="status" className={`mt-3 font-bold ${document?.status === "submitted" ? "text-emerald-800" : document ? "text-amber-900" : "text-muted-foreground"}`}>
-      {document?.status === "submitted" ? "Iesniegta elektroniski" : document ? "Elektroniski iesniegtā lapa attiecas uz iepriekšējo sastāvu. Atjaunoto lapu varat augšupielādēt vai iesniegt klātienē." : "Elektroniski nav iesniegta"}
+      {document?.status === "submitted" ? "Iesniegta elektroniski" : document ? "Pēc elektroniskās iesniegšanas ir mainīti skolas dati vai sastāvs. Atjaunoto lapu varat augšupielādēt vai iesniegt klātienē." : "Elektroniski nav iesniegta"}
     </p>
     {document && <a className="mt-2 block break-all text-sm font-bold text-primary underline" href={`/api/safety-documents/${document.id}`}>{document.fileName} · {new Date(document.createdAt).toLocaleString("lv-LV")}</a>}
     <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={submit}>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Edit3, FileSignature, KeyRound, Loader2, LogOut, Plus, Save, Trash2, UserRoundPlus, Users } from "lucide-react";
 import { numberedTeam, teamOptions } from "@/lib/team-registration";
 import { SafetyUpload, type SafetyDocument } from "@/components/safety-upload";
+import { SchoolNameEditor } from "@/components/school-name-editor";
 import type { RosterReadiness } from "@/lib/roster-readiness";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,7 @@ export function SchoolPortal() {
   async function logout() { await action({ action: "logout" }); setData(null); }
 
   return <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><PageHeading eyebrow={data.school.municipality} title={data.school.name} description="Pārvaldiet komandas vadītājus, dalībniekus un pieteikumus sporta veidos."/><Button variant="outline" onClick={logout}><LogOut/> Iziet</Button></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><PageHeading eyebrow={data.school.municipality} title={data.school.name} description="Pārvaldiet komandas vadītājus, dalībniekus un pieteikumus sporta veidos."/><div className="flex flex-wrap items-center gap-2"><SchoolNameEditor name={data.school.name} onSave={async (name, previousName) => { await action({ action: "rename-school", name, previousName }); setNotice("Skolas nosaukums saglabāts."); }} /><Button variant="outline" onClick={logout}><LogOut/> Iziet</Button></div></div>
     {error && <p className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-800">{error}</p>}
     {notice && <p role="status" className="mb-5 rounded-2xl bg-emerald-50 p-4 font-bold text-emerald-900">{notice}</p>}
     {!data.rosterEditable && <p className="mb-5 rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">Komandas sastāva pievienošana un labošana ir slēgta. Saglabātie dalībnieki paliek reģistrēti; nepabeigts pieteikums netiek automātiski pabeigts. Ja pieteikums nav pabeigts vai vajadzīgas izmaiņas, sazinieties ar organizatoru.</p>}
