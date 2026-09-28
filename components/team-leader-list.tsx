@@ -1,39 +1,59 @@
 "use client";
 
 import { useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { schoolStatusLabel } from "@/lib/participant-list";
+import { filterTeamLeaders, type ListedLeader } from "@/lib/team-leader-list";
 
-export type ListedLeader = {
-  id: number;
-  fullName: string;
-  role: string;
-  email: string | null;
-  phone: string | null;
-  schoolId: number;
-  schoolName: string;
-  municipality: string;
-  schoolStatus: string;
-};
+export type { ListedLeader } from "@/lib/team-leader-list";
 
 export function TeamLeaderList({ leaders }: { leaders: ListedLeader[] }) {
   const [search, setSearch] = useState("");
   const [school, setSchool] = useState("");
-  const query = search.trim().toLocaleLowerCase("lv");
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
   const schools = [...new Map(leaders.map((leader) => [leader.schoolId, leader.schoolName])).entries()];
-  const filtered = leaders.filter((leader) =>
-    (!school || String(leader.schoolId) === school) &&
-    (!query || [leader.fullName, leader.role, leader.schoolName, leader.municipality, leader.email, leader.phone]
-      .filter(Boolean).join(" ").toLocaleLowerCase("lv").includes(query)),
-  );
+  const filtered = filterTeamLeaders(leaders, { school, search });
+
+  async function exportExcel() {
+    setExporting(true);
+    setError("");
+    try {
+      const query = new URLSearchParams({ school, search });
+      const response = await fetch(`/api/team-leaders?${query}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? "Neizdevās eksportēt Excel failu.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `komandu-vaditaji-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Eksports neizdevās.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return <section className="glass-panel rounded-3xl p-5">
     <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
       <div>
         <h2 className="text-xl font-black">Komandu vadītāju saraksts</h2>
         <p className="mt-1 text-sm text-muted-foreground" role="status">Atlasīti: {filtered.length} no {leaders.length} vadītājiem</p>
+        <p className="mt-1 text-xs text-muted-foreground">Excel failā iekļauti vadītāji atbilstoši izvēlētajiem filtriem.</p>
       </div>
-
+      <Button type="button" variant="outline" onClick={exportExcel} disabled={exporting || !filtered.length}>
+        {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+        {exporting ? "Gatavo Excel…" : "Eksportēt Excel"}
+      </Button>
     </div>
+    {error && <p className="mb-4 text-sm text-red-700" role="alert">{error}</p>}
     <div className="mb-5 grid gap-3 sm:grid-cols-2">
       <label className="form-label">Meklēt vadītāju
         <input className="form-control" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Vārds, uzvārds, skola, novads" />
