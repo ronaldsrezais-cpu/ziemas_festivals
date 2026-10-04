@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { EmailSettings } from "@/components/email-settings";
 import { SchoolNameEditor } from "@/components/school-name-editor";
+import { JudgeAccessControls, JudgePasswordField, SavedJudgePassword } from "@/components/judge-access-controls";
 import { EmailOutbox, type OutboxItem } from "@/components/email-outbox";
 import type { SafetyDocument } from "@/components/safety-upload";
 import type { RosterReadiness } from "@/lib/roster-readiness";
@@ -108,9 +109,9 @@ export function AdminPortal() {
   useEffect(() => {
     load();
   }, [load]);
-  async function action(payload: Record<string, unknown>) {
+  async function action(payload: Record<string, unknown>, endpoint = "/api/actions") {
     setError("");
-    const response = await fetch("/api/actions", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -250,6 +251,8 @@ export function AdminPortal() {
           <JudgesSection
             data={data}
             add={async (payload) => action({ action: "add-judge", ...payload })}
+            savePassword={(judgeId, password) => action({ action: "reset-password", judgeId, password }, "/api/judges")}
+            remove={(judgeId, confirmation) => action({ action: "delete", judgeId, confirmation }, "/api/judges")}
           />
         </TabsContent>
         <TabsContent value="emails" forceMount className="data-[state=inactive]:hidden">
@@ -702,14 +705,21 @@ function CategoryForm({
 function JudgesSection({
   data,
   add,
+  savePassword,
+  remove,
 }: {
   data: AdminData;
   add: (payload: Record<string, unknown>) => Promise<unknown>;
+  savePassword: (judgeId: number, password: string) => Promise<unknown>;
+  remove: (judgeId: number, confirmation: string) => Promise<unknown>;
 }) {
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<{ fullName: string; password: string } | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    setError(""); setBusy(true); setCreated(null);
     const form = event.currentTarget;
     const values = Object.fromEntries(new FormData(form));
     try {
@@ -718,12 +728,14 @@ function JudgesSection({
         fullName: String(values.fullName),
         password: String(values.password),
       });
+      setCreated({ fullName: String(values.fullName).trim(), password: String(values.password) });
       form.reset();
+      setPassword("");
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Neizdevās saglabāt.",
       );
-    }
+    } finally { setBusy(false); }
   }
   return (
     <div className="grid gap-6 lg:grid-cols-[.75fr_1.25fr]">
@@ -732,7 +744,7 @@ function JudgesSection({
         <div className="grid gap-4">
           <label className="form-label">
             Sporta veids
-            <select className="form-control" name="sportId" required>
+            <select className="form-control" name="sportId" required disabled={busy}>
               <option value="">Izvēlieties</option>
               {data.sports.map((sport) => (
                 <option value={sport.id} key={sport.id}>
@@ -743,35 +755,29 @@ function JudgesSection({
           </label>
           <label className="form-label">
             Vārds, uzvārds
-            <input className="form-control" name="fullName" required />
+            <input className="form-control" name="fullName" required disabled={busy} />
           </label>
-          <label className="form-label">
-            Parole
-            <input
-              className="form-control"
-              name="password"
-              type="password"
-              minLength={6}
-              required
-            />
-          </label>
+          <JudgePasswordField value={password} onChange={setPassword} disabled={busy} />
         </div>
         {error && (
           <p className="mt-4 rounded-xl bg-red-50 p-3 font-bold text-red-800">
             {error}
           </p>
         )}
-        <Button className="mt-5 bg-[#0c0942]">
-          <Plus /> Izveidot piekļuvi
+        <Button className="mt-5 bg-[#0c0942]" disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <Plus />} Izveidot piekļuvi
         </Button>
+        {created && <div className="mt-5"><SavedJudgePassword fullName={created.fullName} password={created.password} /></div>}
       </form>
-      <div className="glass-panel overflow-hidden rounded-3xl">
+      <div className="glass-panel overflow-x-auto rounded-3xl">
+        <p className="border-b px-5 py-3 text-sm text-muted-foreground">Saglabātās paroles nevar apskatīt. Izvēlieties “Jauna parole”, lai iestatītu un nokopētu jaunu piekļuves paroli.</p>
         <table className="data-table">
           <thead>
             <tr>
               <th>Tiesnesis</th>
               <th>Sporta veids</th>
               <th>Statuss</th>
+              <th>Darbības</th>
             </tr>
           </thead>
           <tbody>
@@ -780,10 +786,12 @@ function JudgesSection({
                 <td className="font-black">{judge.fullName}</td>
                 <td>{judge.sportName}</td>
                 <td>{judge.active ? "Aktīvs" : "Neaktīvs"}</td>
+                <td><JudgeAccessControls judge={judge} savePassword={savePassword} remove={remove} /></td>
               </tr>
             ))}
           </tbody>
         </table>
+        {!data.judges.length && <p className="p-6 text-center text-muted-foreground">Tiesnešu vēl nav.</p>}
       </div>
     </div>
   );

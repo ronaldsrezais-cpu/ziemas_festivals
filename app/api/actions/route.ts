@@ -23,16 +23,17 @@ import { emailConfiguration } from "@/lib/email-configuration";
 import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
 import { renameSchool, schoolNameSchema, SchoolNameError } from "@/lib/school-profile";
+import { judgePasswordSchema } from "@/lib/judge-access";
 import { rosterReadiness } from "@/lib/roster-readiness";
 import { runtimeEnv } from "@/lib/runtime";
 import {
   accessCodeHash,
   createSession,
+  createJudgeSession,
   destroySession,
   getSession,
   hashSecret,
   requiredLeaders,
-  verifySecret,
 } from "@/lib/security";
 import { recoverSchoolAccessCode } from "@/lib/school-access-code";
 import { getSportsWithCategories } from "@/lib/sport-seed";
@@ -565,14 +566,8 @@ export async function POST(request: Request) {
     if (action === "login-judge") {
       const judgeId = z.number().int().positive().parse(payload.judgeId);
       const password = z.string().min(4).parse(payload.password);
-      const [judge] = await db
-        .select()
-        .from(judges)
-        .where(and(eq(judges.id, judgeId), eq(judges.active, true)))
-        .limit(1);
-      if (!judge || !(await verifySecret(password, judge.passwordHash)))
+      if (!await createJudgeSession(judgeId, password))
         return Response.json({ error: "Nepareiza parole." }, { status: 401 });
-      await createSession("judge", judge.id);
       return Response.json({ ok: true });
     }
 
@@ -638,7 +633,7 @@ export async function POST(request: Request) {
           .object({
             sportId: z.number().int().positive(),
             fullName: z.string().trim().min(3),
-            password: z.string().min(6),
+            password: judgePasswordSchema,
           })
           .parse(payload);
         const [judge] = await db

@@ -14,10 +14,11 @@ export const results = table('results', ['id', 'entryId', 'categoryId']);
 export const safetyDocuments = table('documents', ['id', 'schoolId']);
 export const judges = table('judges', ['id', 'active', 'sportId']);
 export const uploads = table('uploads', ['id', 'sportId']);
-export const sessions = table('sessions', ['role', 'subjectId']);
+export const sessions = table('sessions', ['id', 'role', 'subjectId', 'expiresAt']);
 export const eq = (field, value) => ({ op: 'eq', field, value });
 export const inArray = (field, value) => ({ op: 'in', field, value });
 export const lt = (field, value) => ({ op: 'lt', field, value });
+export const gt = (field, value) => ({ op: 'gt', field, value });
 export const and = (...conditions) => ({ op: 'and', conditions });
 export const or = (...conditions) => ({ op: 'or', conditions });
 export const desc = field => field;
@@ -37,6 +38,7 @@ function matches(row, condition) {
   if (condition.op === 'eq') return actual === condition.value;
   if (condition.op === 'in') return condition.value.includes(actual);
   if (condition.op === 'lt') return actual !== null && actual < condition.value;
+  if (condition.op === 'gt') return actual !== null && actual > condition.value;
   throw new Error('Unsupported test condition');
 }
 

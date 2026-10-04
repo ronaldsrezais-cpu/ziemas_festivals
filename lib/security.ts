@@ -1,7 +1,8 @@
 import { and, eq, gt } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { getDb } from "@/db";
-import { sessions } from "@/db/schema";
+import { withTransaction } from "@/db/transaction";
+import { judges, sessions } from "@/db/schema";
 import { runtimeEnv } from "@/lib/runtime";
 
 export type SessionRole = "admin" | "school" | "judge";
@@ -93,20 +94,43 @@ export function createAccessCode() {
   );
 }
 
-export async function createSession(role: SessionRole, subjectId: number) {
+function newSession(role: SessionRole, subjectId: number) {
   const id = `${role}_${crypto.randomUUID()}_${randomHex(8)}`;
   const expires = new Date(Date.now() + 1000 * 60 * 60 * 12);
-  await getDb()
-    .insert(sessions)
-    .values({ id, role, subjectId, expiresAt: expires.toISOString() });
+  return { id, role, subjectId, expiresAt: expires.toISOString() };
+}
+
+async function setSessionCookie(session: ReturnType<typeof newSession>) {
   const jar = await cookies();
-  jar.set("zf_session", id, {
+  jar.set("zf_session", session.id, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    expires,
+    expires: new Date(session.expiresAt),
   });
+}
+
+export async function createSession(role: SessionRole, subjectId: number) {
+  const session = newSession(role, subjectId);
+  await getDb().insert(sessions).values(session);
+  await setSessionCookie(session);
+}
+
+export async function createJudgeSession(judgeId: number, password: string) {
+  const session = await withTransaction(async tx => {
+    // Serialize login with password resets/deletion so an old password cannot
+    // create a fresh session after an administrator has revoked access.
+    const [judge] = await tx.select().from(judges)
+      .where(and(eq(judges.id, judgeId), eq(judges.active, true))).for("share");
+    if (!judge || !await verifySecret(password, judge.passwordHash)) return null;
+    const next = newSession("judge", judge.id);
+    await tx.insert(sessions).values(next);
+    return next;
+  });
+  if (!session) return false;
+  await setSessionCookie(session);
+  return true;
 }
 
 export async function getSession(requiredRole?: SessionRole) {
