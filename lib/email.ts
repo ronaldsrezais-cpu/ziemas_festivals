@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { withTransaction, type Transaction } from "@/db/transaction";
-import { emailOutbox, schools, settings } from "@/db/schema";
+import { emailOutbox, schools, settings, startProtocols } from "@/db/schema";
 import { runtimeEnv } from "@/lib/runtime";
 import { accessCodeHash, createAccessCode, sha256 } from "@/lib/security";
 import { recoverSchoolAccessCode } from "@/lib/school-access-code";
@@ -49,7 +49,7 @@ export async function resendApprovalEmail(schoolId: number) {
   const mailId = await withTransaction(async tx => {
     const [school] = await tx.select().from(schools).where(eq(schools.id, schoolId)).for("update");
     if (!school || school.status !== "approved") throw new Error("E-pastu var nosūtīt tikai apstiprinātai skolai.");
-    const [latest] = await tx.select().from(emailOutbox).where(eq(emailOutbox.schoolId, schoolId))
+    const [latest] = await tx.select().from(emailOutbox).where(and(eq(emailOutbox.schoolId, schoolId), eq(emailOutbox.kind, "approval")))
       .orderBy(desc(emailOutbox.id)).limit(1);
     const code = await recoverSchoolAccessCode(latest?.body, school.accessCodeHash, accessCodeHash);
     if (!code) throw new Error("Esošais piekļuves kods nav pieejams. E-pasts netika nosūtīts; kods nav mainīts.");
@@ -76,12 +76,20 @@ export async function attemptApprovalEmail(mailId: number) {
   return attemptEmail(mailId, false);
 }
 
-async function attemptEmail(mailId: number, allowTest: boolean) {
+export async function attemptProtocolEmail(mailId: number) {
+  return attemptEmail(mailId, false, "start_protocol");
+}
+
+async function attemptEmail(mailId: number, allowTest: boolean, kind: "approval" | "start_protocol" = "approval") {
   const db = getDb();
   const runtime = runtimeEnv();
   const [mail] = await db.select().from(emailOutbox).where(eq(emailOutbox.id, mailId)).limit(1);
   if (!mail) throw new Error("E-pasts nav atrasts.");
-  if (mail.schoolId !== null || !allowTest) {
+  if (mail.kind !== kind) throw new Error("Nepareizs e-pasta veids.");
+  if (kind === "start_protocol") {
+    const [protocol] = mail.startProtocolId ? await db.select().from(startProtocols).where(eq(startProtocols.id, mail.startProtocolId)).limit(1) : [];
+    if (!protocol?.published) throw new Error("Starta protokols nav publicēts.");
+  } else if (mail.schoolId !== null || !allowTest) {
     const [school] = mail.schoolId ? await db.select().from(schools).where(eq(schools.id, mail.schoolId)).limit(1) : [];
     if (!school || school.status !== "approved" || !await recoverSchoolAccessCode(mail.body, school.accessCodeHash, accessCodeHash))
       throw new Error("Šī vēstule vairs neatbilst apstiprinātās skolas piekļuves kodam.");
@@ -107,7 +115,7 @@ async function attemptEmail(mailId: number, allowTest: boolean) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST", signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${runtime.RESEND_API_KEY!.trim()}`, "Content-Type": "application/json",
-        "Idempotency-Key": `approval-${claimed.id}-${await sha256(JSON.stringify(payload))}` },
+        "Idempotency-Key": `${kind === "approval" ? "approval" : "start-protocol"}-${claimed.id}-${await sha256(JSON.stringify(payload))}` },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {

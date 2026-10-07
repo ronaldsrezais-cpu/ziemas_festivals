@@ -189,11 +189,25 @@ export const sessions = pgTable(
   (table) => [index("idx_sessions_expires_at").on(table.expiresAt)],
 );
 
+export const startProtocols = pgTable("start_protocols", {
+  id: serial("id").primaryKey(),
+  sportId: integer("sport_id").notNull().references(() => sports.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  objectKey: text("object_key").notNull(),
+  mimeType: text("mime_type").notNull(),
+  createdByJudgeId: integer("created_by_judge_id").references(() => judges.id, { onDelete: "set null" }),
+  published: boolean("published").notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  publishedAt: text("published_at"),
+}, table => [uniqueIndex("idx_start_protocol_object").on(table.objectKey), index("idx_start_protocol_sport").on(table.sportId)]);
+
 export const emailOutbox = pgTable(
   "email_outbox",
   {
     id: serial("id").primaryKey(),
     schoolId: integer("school_id").references(() => schools.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["approval", "start_protocol"] }).notNull().default("approval"),
+    startProtocolId: integer("start_protocol_id").references(() => startProtocols.id, { onDelete: "cascade" }),
     recipient: text("recipient").notNull(),
     subject: text("subject").notNull(),
     body: text("body").notNull(),
@@ -209,5 +223,6 @@ export const emailOutbox = pgTable(
     lastAttemptAt: text("last_attempt_at"),
     attemptCount: integer("attempt_count").notNull().default(0),
   },
-  (table) => [index("idx_email_outbox_status").on(table.status)],
+  (table) => [index("idx_email_outbox_status").on(table.status),
+    uniqueIndex("idx_protocol_school_email").on(table.startProtocolId, table.schoolId)],
 );

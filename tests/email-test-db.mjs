@@ -2,8 +2,9 @@
 import { createHash } from 'node:crypto';
 
 const table = (name, keys) => Object.fromEntries([['_table', name], ...keys.map(key => [key, { key }])]);
-export const schools = table('schools', ['id', 'name', 'municipality', 'accessCodeHash', 'rosterRevision']);
-export const emailOutbox = table('emails', ['id', 'schoolId', 'status', 'lastAttemptAt', 'attemptCount']);
+export const schools = table('schools', ['id', 'name', 'municipality', 'status', 'accessCodeHash', 'rosterRevision']);
+export const emailOutbox = table('emails', ['id', 'schoolId', 'kind', 'startProtocolId', 'status', 'lastAttemptAt', 'attemptCount']);
+export const startProtocols = table('protocols', ['id', 'sportId', 'objectKey', 'published', 'publishedAt']);
 export const settings = table('settings', ['key', 'updatedAt']);
 export const participants = table('participants', ['id', 'schoolId', 'active']);
 export const leaders = table('leaders', ['id', 'schoolId']);
@@ -22,6 +23,7 @@ export const gt = (field, value) => ({ op: 'gt', field, value });
 export const and = (...conditions) => ({ op: 'and', conditions });
 export const or = (...conditions) => ({ op: 'or', conditions });
 export const desc = field => field;
+export const asc = field => field;
 export const sql = (strings, field) => ({ increment: field.key });
 export const sha256 = async value => createHash('sha256').update(value).digest('hex');
 export const accessCodeHash = code => sha256(`${code.trim().toUpperCase()}:test-secret`);
@@ -80,7 +82,7 @@ const db = {
           Object.assign(existing, conflict.set);
           return [{ ...existing }];
         }
-        const row = { id: Math.max(0, ...rows.map(item => item.id ?? 0)) + 1, status: 'queued', error: null,
+        const row = { id: Math.max(0, ...rows.map(item => item.id ?? 0)) + 1, status: 'queued', error: null, kind: 'approval', published: false,
           attemptCount: 0, sentAt: null, lastAttemptAt: null, html: null, sender: null, replyTo: null,
           providerId: null, deliveryStatus: null, updatedAt: new Date().toISOString(), ...value };
         rows.push(row);
@@ -118,10 +120,11 @@ export async function withTransaction(work) {
 
 export async function resetEmailState() {
   state.settings = []; state.session = null; state.documents = []; state.judges = []; state.uploads = [];
+  state.protocols = []; state.categories = []; state.sports = [];
   state.env = { RESEND_API_KEY: 're_unit_test_only', EMAIL_FROM: 'Festival <noreply@example.test>' };
   state.schools = [{ id: 1, rosterRevision: 0, name: 'Testa skola', teacherName: 'Testa skolotāja', email: 'teacher@example.test', status: 'approved',
     accessCodeHash: await accessCodeHash('ABCDEFGH') }];
-  state.emails = [{ id: 1, schoolId: 1, recipient: 'teacher@example.test', subject: 'Apstiprinājums',
+  state.emails = [{ id: 1, schoolId: 1, kind: 'approval', recipient: 'teacher@example.test', subject: 'Apstiprinājums',
     body: 'Labdien!\nSkolas piekļuves kods: ABCDEFGH\n', status: 'queued', error: null,
     attemptCount: 0, lastAttemptAt: null, sentAt: null }];
 }

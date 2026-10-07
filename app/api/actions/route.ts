@@ -262,7 +262,7 @@ async function adminView() {
       attemptCount: emailOutbox.attemptCount,
       providerId: emailOutbox.providerId,
       deliveryStatus: emailOutbox.deliveryStatus,
-    }).from(emailOutbox).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
+    }).from(emailOutbox).where(eq(emailOutbox.kind, "approval")).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
     db.select({ participantId: entries.participantId }).from(entries),
     db.select().from(safetyDocuments),
   ]);

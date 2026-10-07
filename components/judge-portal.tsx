@@ -1,5 +1,8 @@
 "use client";
 
+import { JudgeContacts } from "@/components/judge-contacts";
+import { JudgeStartProtocols } from "@/components/start-protocols";
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { put } from "@vercel/blob/client";
 import {
@@ -164,6 +167,8 @@ export function JudgePortal() {
       </div>
       <Tabs defaultValue="participants">
         <TabsList className="mb-6 h-auto w-full flex-wrap justify-start rounded-2xl bg-[#0c0942] p-1.5 text-white">
+          <TabsTrigger value="contacts" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandu vadītāju e-pasti</TabsTrigger>
+          <TabsTrigger value="start-protocols" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Starta protokoli</TabsTrigger>
           <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Reģistrētie dalībnieki</TabsTrigger>
           <TabsTrigger
             value="manual"
@@ -184,6 +189,8 @@ export function JudgePortal() {
             Pievienotie faili
           </TabsTrigger>
         </TabsList>
+        <TabsContent value="contacts"><JudgeContacts /></TabsContent>
+        <TabsContent value="start-protocols"><JudgeStartProtocols sportId={data.judge.sportId} judgeId={data.judge.id} /></TabsContent>
         <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas, laikus un punktus ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
         <TabsContent value="manual">
           <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">Katram dalībniekam ievadiet vietu, laiku vai punktus un saglabājiet. Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>

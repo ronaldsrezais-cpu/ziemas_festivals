@@ -17,6 +17,12 @@ Pirms migrācijas aizpildiet `.env` vērtības. Lietotnei izmantojiet apvienoto 
 
 `npm run db:migrate` nolasa `.env.local` un `.env`, izmanto Drizzle migrāciju žurnālu un ievieš gaidošās izmaiņas vienā Neon HTTP transakcijā. Komandu var atkārtot: jau ieviestās migrācijas netiek palaistas vēlreiz. Kļūdas gadījumā transakcijas izmaiņas tiek atceltas, un savienojuma atslēgas netiek izdrukātas.
 
+Vercel produkcijas `npm run build` pirms būves automātiski palaiž šo migrāciju soli. Tas izmanto tās pašas lietotnes Neon datubāzes tiešo savienojumu (`DATABASE_URL_UNPOOLED`, ja norādīts; citādi `DATABASE_URL` bez Neon `-pooler` sufiksa). Nederīga vai uz citu datubāzi vērsta konfigurācija aptur izvietošanu. Lokālās un Preview būves migrācijas automātiski nepalaiž; atsevišķai Preview datubāzei migrācija jāpalaiž manuāli. Shēmas izmaiņām jābūt savietojamām ar iepriekšējo lietotnes versiju.
+
+Tiesneša sadaļā “Komandu vadītāju e-pasti” rāda tikai apstiprinātas skolas ar aktīviem dalībniekiem tiesneša sporta veidā. Kontakti ir atlasāmi pēc disciplīnas un kategorijas. Skolas dalībnieka formā vispirms izvēlas sporta veidu, pēc tam atbilstošu kategoriju.
+
+“Starta protokoli” pieņem PDF/XLSX/XLS/CSV failus līdz 12 MB privātajā Blob glabātuvē. Melnraksts kļūst publiski pieejams tikai pēc “Publicēt un paziņot skolām”. Vienā transakcijā saglabā publicēšanu un pa vienam paziņojumam katrai attiecīgajā sportā pārstāvētajai skolai (reģistrācijas kontaktpersonas e-pasts). Sūtīšana notiek sagaidītos pieprasījumos; atvērta tiesneša sadaļa turpina atlikušos pieprasījumus. Pēc pārlūka aizvēršanas vai pakalpojuma kļūdas atlikušās vēstules saglabājas un nosūtāmas ar “Nosūtīt atlikušos paziņojumus”. Nosūtītu vēstuli šī poga neatkārto. Jauns protokola fails veido jaunu paziņojumu. Publicēšanas brīdī fiksētais saņēmēju saraksts vēlāk pievienotām skolām automātiski netiek papildināts. E-pasta sūtītājs, atbildes adrese, logo un kājene izmanto administratora e-pasta dizaina iestatījumus.
+
 ## Izvietošana ar GitHub un Vercel
 
 Šis repozitorijs ir savienots ar Vercel. Izmaiņas `main` zarā automātiski izraisa jaunu produkcijas izvietošanu; citu zaru izmaiņām Vercel izveido priekšskatījumu. Turpmākiem koda atjauninājumiem ZIP augšupielāde nav vajadzīga.

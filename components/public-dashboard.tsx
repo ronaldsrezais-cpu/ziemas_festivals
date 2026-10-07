@@ -5,6 +5,7 @@ import { Download, Filter, Info, Medal, School, Trophy, Users } from "lucide-rea
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FestivalHero } from "@/components/festival-hero";
+import { PublicStartProtocols } from "@/components/public-start-protocols";
 
 type PublicData = {
   sports: Array<{
@@ -158,6 +159,7 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
   return (
     <main>
       <FestivalHero />
+      {configured && <PublicStartProtocols />}
       <div id="dalibnieki" className="mx-auto max-w-7xl px-5 pt-12 sm:px-8 sm:pt-16">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div><p className="eyebrow mb-3">Seko līdzi festivālam</p><h2 className="section-title text-3xl sm:text-4xl">Dalībnieki un rezultāti</h2></div>
