@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Edit3, FileSignature, KeyRound, Loader2, LogOut, Plus, Save, Trash2, UserRoundPlus, Users } from "lucide-react";
 import { numberedTeam, teamOptions } from "@/lib/team-registration";
+import { resolveParticipantCategory } from "@/lib/participant-category";
 import { SafetyUpload, type SafetyDocument } from "@/components/safety-upload";
 import { SchoolNameEditor } from "@/components/school-name-editor";
 import type { RosterReadiness } from "@/lib/roster-readiness";
@@ -84,7 +85,7 @@ export function SchoolPortal() {
     <Tabs defaultValue="participants">
       <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white"><TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger><TabsTrigger value="leaders" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandas vadītāji</TabsTrigger></TabsList>
       <TabsContent value="participants">
-        <div className="mb-4 flex justify-end"><Dialog open={participantOpen} onOpenChange={setParticipantOpen}><DialogTrigger asChild><Button disabled={!data.rosterEditable} className="bg-[#0c0942]"><Plus/> Pievienot dalībnieku</Button></DialogTrigger><DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>Pievienot dalībnieku</DialogTitle><DialogDescription>Sistēma piedāvās tikai dzimšanas gadam un dzimumam atbilstošās kategorijas.</DialogDescription></DialogHeader><ParticipantForm sports={data.sports} entries={data.entries} onSave={async (payload) => { await action({ action: "save-participant", ...payload }); setParticipantOpen(false); }} /></DialogContent></Dialog></div>
+        <div className="mb-4 flex justify-end"><Dialog open={participantOpen} onOpenChange={setParticipantOpen}><DialogTrigger asChild><Button disabled={!data.rosterEditable} className="bg-[#0c0942]"><Plus/> Pievienot dalībnieku</Button></DialogTrigger><DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>Pievienot dalībnieku</DialogTitle><DialogDescription>Izvēlieties sporta veidu. Grupa tiks noteikta pēc dalībnieka dzimšanas gada un dzimuma.</DialogDescription></DialogHeader><ParticipantForm sports={data.sports} entries={data.entries} onSave={async (payload) => { await action({ action: "save-participant", ...payload }); setParticipantOpen(false); }} /></DialogContent></Dialog></div>
         <ParticipantTable data={data} onDelete={async (id) => { if (confirm("Vai noņemt dalībnieku un visus viņa pieteikumus?")) { try { await action({ action: "delete-participant", participantId: id }); } catch (reason) { showError(reason); } } }} onEdit={async (payload) => action({ action: "save-participant", ...payload })}/>
       </TabsContent>
       <TabsContent value="leaders"><LeaderSection data={data} onAdd={async (payload) => action({ action: "add-leader", ...payload })} onDelete={async (id) => { try { await action({ action: "delete-leader", leaderId: id }); } catch (reason) { showError(reason); } }}/></TabsContent>
@@ -109,12 +110,17 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
   })) : [{ sportId: "", categoryId: "", teamName: "" }]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const eligible = (category: Category, year = birthYear, group = gender) => !!year && Number(year) >= category.minBirthYear && Number(year) <= category.maxBirthYear && (category.gender === "X" || category.gender === group);
+  const resolvedRows = rows.map(row => {
+    const sport = sports.find(sport => String(sport.id) === row.sportId);
+    return { row, sport, ...resolveParticipantCategory(sport?.categories ?? [], birthYear, gender, row.categoryId) };
+  });
   function changeDemographics(year: string, group: "F" | "M") {
     setBirthYear(year); setGender(group);
     setRows(values => values.map(row => {
-      const category = sports.find(sport => String(sport.id) === row.sportId)?.categories.find(category => String(category.id) === row.categoryId);
-      return category && eligible(category, year, group) ? row : { ...row, categoryId: "", teamNumber: "1" };
+      const categories = sports.find(sport => String(sport.id) === row.sportId)?.categories ?? [];
+      const previous = resolveParticipantCategory(categories, birthYear, gender, row.categoryId).selected;
+      const next = resolveParticipantCategory(categories, year, group, row.categoryId).selected;
+      return { ...row, categoryId: next ? String(next.id) : "", teamNumber: previous?.id === next?.id ? row.teamNumber : "1" };
     }));
   }
   function updateRow(index: number, patch: Partial<RegistrationDraft>) {
@@ -123,10 +129,10 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
   async function submit(event: FormEvent) {
     event.preventDefault(); setError(""); setBusy(true);
     try {
-      if (rows.some(row => !sports.find(sport => String(sport.id) === row.sportId)?.categories.some(category => String(category.id) === row.categoryId && eligible(category))))
-        throw new Error("Katram pieteikumam izvēlieties sporta veidu un atbilstošu kategoriju.");
+      if (resolvedRows.some(({ selected }) => !selected))
+        throw new Error("Pārbaudiet dzimšanas gadu un sporta veidu. Ja piedāvātas vairākas disciplīnas vai ieskaites, izvēlieties nepieciešamo.");
       await onSave({ id: participant?.id, firstName, lastName, birthYear: Number(birthYear), gender,
-        registrations: rows.map(row => ({ categoryId: Number(row.categoryId), teamNumber: Number(row.teamNumber || 1) })) });
+        registrations: resolvedRows.map(({ row, selected }) => ({ categoryId: selected!.id, teamNumber: Number(row.teamNumber || 1) })) });
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās saglabāt."); }
     finally { setBusy(false); }
   }
@@ -134,19 +140,24 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
     <label className="form-label">Vārds<input className="form-control" value={firstName} onChange={e => setFirstName(e.target.value)} required /></label>
     <label className="form-label">Uzvārds<input className="form-control" value={lastName} onChange={e => setLastName(e.target.value)} required /></label>
     <label className="form-label">Dzimšanas gads<input className="form-control" type="number" min="2000" max="2030" value={birthYear} onChange={e => changeDemographics(e.target.value, gender)} required /></label>
-    <label className="form-label">Dzimuma grupa<select className="form-control" value={gender} onChange={e => changeDemographics(birthYear, e.target.value as "F" | "M")}><option value="F">Meitenes / jaunietes</option><option value="M">Zēni / jaunieši</option></select></label>
+    <label className="form-label">Dzimums<select className="form-control" value={gender} onChange={e => changeDemographics(birthYear, e.target.value as "F" | "M")}><option value="F">Meitenes / jaunietes</option><option value="M">Zēni / jaunieši</option></select></label>
   </div><div>
-    <div className="mb-3 flex items-center justify-between"><h3 className="font-black">Sporta veidi un kategorijas</h3><Button type="button" variant="outline" size="sm" onClick={() => setRows(values => [...values, { sportId: "", categoryId: "", teamName: "" }])}><Plus /> Vēl viens</Button></div>
-    <p className="mb-3 text-sm text-muted-foreground">Vispirms izvēlieties sporta veidu, tad dalībnieka dzimšanas gadam un dzimumam atbilstošu kategoriju.</p>
+    <div className="mb-3 flex items-center justify-between"><h3 className="font-black">Sporta veidi</h3><Button type="button" variant="outline" size="sm" onClick={() => setRows(values => [...values, { sportId: "", categoryId: "", teamName: "" }])}><Plus /> Vēl viens</Button></div>
+    <p className="mb-3 text-sm text-muted-foreground">Izvēlieties sporta veidu — grupu sistēma noteiks pēc dzimšanas gada un dzimuma. Ja pieejamas vairākas disciplīnas vai ieskaites, izvēlieties nepieciešamo.</p>
     {sports.every(sport => !sport.categories.length) && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Administrators vēl nav publicējis jaunā gada kategorijas.</p>}
-    <div className="grid gap-3">{rows.map((row, index) => {
-      const sport = sports.find(sport => String(sport.id) === row.sportId);
-      const categories = sport?.categories.filter(category => eligible(category)) ?? [];
-      const selected = categories.find(category => String(category.id) === row.categoryId);
-      const names = teamOptions(entries.filter(entry => entry.categoryId === Number(row.categoryId)));
+    <div className="grid gap-3">{resolvedRows.map(({ row, sport, options, selected, automatic }, index) => {
+      const disciplines = new Set(options.map(category => category.discipline));
+      const choiceLabel = disciplines.size === options.length ? "Disciplīna" : disciplines.size === 1 ? "Ieskaites veids" : "Disciplīna / ieskaites veids";
+      const names = teamOptions(entries.filter(entry => entry.categoryId === selected?.id));
       return <div key={index} className="grid gap-3 rounded-2xl bg-[#f0f1ff] p-4 sm:grid-cols-[1fr_1fr_auto]">
-        <label className="form-label">1. Sporta veids<select className="form-control" value={row.sportId ?? ""} required onChange={e => updateRow(index, { sportId: e.target.value, categoryId: "", teamNumber: "1" })}><option value="">Izvēlieties sporta veidu</option>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>
-        <label className="form-label">2. Disciplīna / kategorija<select className="form-control" value={selected ? row.categoryId : ""} required disabled={!sport || !birthYear} onChange={e => updateRow(index, { categoryId: e.target.value, teamNumber: "1" })}><option value="">{!sport ? "Vispirms izvēlieties sporta veidu" : !birthYear ? "Norādiet dzimšanas gadu" : "Izvēlieties kategoriju"}</option>{categories.map(category => <option key={category.id} value={category.id}>{category.discipline} — {category.name} ({category.minBirthYear}–{category.maxBirthYear})</option>)}</select>{sport && birthYear && !categories.length && <span className="text-xs font-normal text-amber-900">Šajā sporta veidā nav dzimšanas gadam un dzimumam atbilstošu kategoriju.</span>}</label>
+        <label className="form-label">Sporta veids<select className="form-control" value={row.sportId ?? ""} required onChange={e => updateRow(index, { sportId: e.target.value, categoryId: "", teamNumber: "1" })}><option value="">Izvēlieties sporta veidu</option>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>
+        <div className="grid content-start gap-3">
+          {options.length > 1 && <label className="form-label">{choiceLabel}<select className="form-control" value={selected ? String(selected.id) : ""} required onChange={e => updateRow(index, { categoryId: e.target.value, teamNumber: "1" })}><option value="">Izvēlieties</option>{options.map(category => <option key={category.id} value={category.id}>{disciplines.size === options.length ? category.discipline : disciplines.size === 1 ? category.name : `${category.discipline} — ${category.name}`}</option>)}</select><span className="text-xs font-normal text-muted-foreground">Šo izvēli nevar noteikt tikai pēc dzimšanas gada un dzimuma.</span></label>}
+          <div role="status" className={`rounded-xl border p-3 ${selected ? "border-emerald-200 bg-white" : "border-[#c7cfff] bg-white/70"}`}>
+            <p className="text-xs font-bold text-muted-foreground">{automatic ? "Grupa · noteikta automātiski" : "Grupa / ieskaite"}</p>
+            {selected ? <><strong className="mt-1 block">{selected.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{selected.discipline} · {selected.minBirthYear}–{selected.maxBirthYear}. dzimšanas gads</span></> : <p className={`mt-1 text-sm ${sport && birthYear && !options.length ? "text-amber-900" : "text-muted-foreground"}`}>{!sport ? "Izvēlieties sporta veidu." : !birthYear ? "Norādiet dzimšanas gadu." : !options.length ? "Šajā sporta veidā nav dzimšanas gadam un dzimumam atbilstošas grupas." : "Izvēlieties disciplīnu vai ieskaites veidu."}</p>}
+          </div>
+        </div>
         <Button type="button" variant="ghost" size="icon" aria-label={`Noņemt ${index + 1}. sporta pieteikumu`} className="self-end text-red-700" disabled={rows.length === 1} onClick={() => setRows(values => values.filter((_, i) => i !== index))}><Trash2 /></Button>
         {sport?.mode === "team" && selected && selected.schoolLimit !== 1 && <label className="form-label sm:col-span-2">Komanda (skolas ietvaros)<select className="form-control" value={row.teamNumber || "1"} onChange={e => updateRow(index, { teamNumber: e.target.value })}>{Array.from({ length: Math.min(selected.schoolLimit ?? names.length + 1, names.length + 1) }, (_, i) => <option key={i + 1} value={i + 1}>{names[i] ?? numberedTeam(names.map(teamName => ({ teamName })), i + 1)}</option>)}</select><span className="text-xs font-normal">Komandas nosaukums nav jāievada.</span></label>}
       </div>;
