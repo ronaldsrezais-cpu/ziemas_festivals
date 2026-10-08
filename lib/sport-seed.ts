@@ -15,7 +15,7 @@ export const sportSeed = [
   { code: "freestyle-ski", name: "Frīstaila slēpošana", location: "Briežkalns", mode: "individual" as const },
   { code: "freestyle-snowboard", name: "Frīstaila snovbords", location: "Briežkalns", mode: "individual" as const },
   { code: "sledding", name: "Ragaviņu sports", location: "Briežkalns", mode: "team" as const },
-  { code: "winter-orienteering", name: "Ziemas orientēšanās", location: "Vestiena", mode: "individual" as const },
+  { code: "winter-orienteering", name: "Ziemas orientēšanās", location: "", mode: "individual" as const },
 ];
 
 type CategoryDraft = { sportCode: string; code: string; name: string; discipline: string; gender: "F" | "M" | "X"; minBirthYear: number; maxBirthYear: number; teamMin?: number; teamMax?: number; schoolLimit?: number | null };
