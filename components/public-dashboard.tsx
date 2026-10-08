@@ -326,6 +326,7 @@ function Participants({
 }) {
   return (
     <div className="grid gap-5">
+      {!participantsPublic && <p className="rounded-xl bg-[#e9ecff] px-5 py-4 text-sm font-medium text-muted-foreground">Dalībnieku vārdu saraksts pašlaik nav publisks.</p>}
       {schools.length === 0 && <Empty text="Pašlaik nav skolu, ko parādīt." />}
       {schools.map((item) => {
         const schoolParticipants = participants.filter(
@@ -345,7 +346,7 @@ function Participants({
                   Reģistrēti dalībnieki: {item.participantCount}
               </span>
             </div>
-            {participantsPublic ? (
+            {participantsPublic && (
               <div className="overflow-x-auto">
                 <table className="data-table">
                   <thead>
@@ -377,10 +378,6 @@ function Participants({
                   </p>
                 )}
               </div>
-            ) : (
-              <p className="p-5 text-sm font-medium text-muted-foreground">
-                Dalībnieku vārdu saraksts pašlaik nav publisks.
-              </p>
             )}
           </article>
         );
