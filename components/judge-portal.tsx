@@ -724,7 +724,7 @@ function ImportResults({
               </thead>
               <tbody>
                 {preview.map((row, index) => (
-                  <tr key={row.entryId}>
+                  <tr key={row.entryId} className={!row.placement && row.status === "ranked" ? "bg-red-50 [&>td]:border-red-200" : undefined}>
                     <td>
                       <input
                         type="checkbox"
@@ -745,6 +745,7 @@ function ImportResults({
                     <td className="font-black">
                       {row.firstName} {row.lastName}
                       <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.matchNote}</p>
+                      {!row.placement && row.status === "ranked" && <p className="mt-1 text-xs font-bold text-red-800">Vieta nav noteikta — precizējiet no oriģināla. Šī rinda netiks saglabāta bez vietas vai DNS/DNF/DSQ statusa.</p>}
                       {row.sourceLine && <details className="mt-2 max-w-md text-xs font-normal"><summary className="cursor-pointer">Atrasta faila rinda</summary><pre className="mt-1 whitespace-pre-wrap break-words">{row.sourceLine}</pre></details>}
                     </td>
                     <td>{data.categories.find(category => category.id === row.categoryId)?.discipline}<div className="text-xs text-muted-foreground">{data.categories.find(category => category.id === row.categoryId)?.name}</div></td>
