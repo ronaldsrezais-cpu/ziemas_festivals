@@ -553,7 +553,6 @@ function ImportResults({
         ...entry,
         ...matches[index],
         matched: false,
-        status: "ranked" as const,
         score: "",
       }));
       setPreview(rows);
@@ -634,7 +633,7 @@ function ImportResults({
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB. Sistēma
           salīdzina vārdus un uzvārdus ar sava sporta veida visu disciplīnu dalībniekiem vai izvēlēto kategoriju.
-          Vietu automātiski piedāvā tikai tad, ja atpazīta kolonna “Vieta”, “Place”, “Rank” vai “Position”.
+          Vietu automātiski piedāvā tikai tad, ja atpazīta kolonna “Vieta”, “Place”, “Pl”, “Rank” vai “Position”.
           Pārbaudiet avota rindu un paši atzīmējiet iekļaujamos dalībniekus. Ja dalībnieks startē vairākās disciplīnās, pārbaudiet kategoriju un ievadiet attiecīgo vietu no oriģināla — neskaidras atbilstības netiek piešķirtas automātiski.
           Skenētus PDF bez teksta slāņa sistēma nenolasa.
         </p>

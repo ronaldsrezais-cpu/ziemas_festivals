@@ -27,13 +27,14 @@ export function previewResultMatches(text: string, entries: ImportEntry[]) {
   let placeColumn = -1;
   const rows = text.split(/\r?\n/).map((line) => {
     const values = cells(line);
-    const header = values.findIndex((value) => /^(vieta|place|rank|position)$/.test(normalizeResultText(value)));
+    const header = values.findIndex((value) => /^(vieta|place|pl|rank|position)$/.test(normalizeResultText(value)));
     if (header >= 0) placeColumn = header;
     const value = placeColumn >= 0 ? values[placeColumn] ?? "" : "";
     // Never interpret a nearby start number, birth year or time as a place.
     const placement = /^\d{1,4}\.?$/.test(value) && Number(value.replace(/\.$/, "")) > 0
       ? String(Number(value.replace(/\.$/, ""))) : "";
-    return { line: line.trim(), placement };
+    const status = values.map(normalizeResultText).find(value => /^(dns|dnf|dsq)$/.test(value)) as "dns" | "dnf" | "dsq" | undefined;
+    return { line: line.trim(), placement, status: status ?? "ranked" as const };
   }).filter((row) => row.line);
 
   return entries.map((entry) => {
@@ -48,9 +49,11 @@ export function previewResultMatches(text: string, entries: ImportEntry[]) {
     return {
       entryId: entry.entryId,
       placement: unique ? candidate!.placement : "",
+      status: unique ? candidate!.status : "ranked" as const,
       sourceLine: candidates.map((row) => row.line).join("\n"),
       matchNote: nameRows.length === 0 ? "Vārds un uzvārds failā nav atrasti."
         : !unique ? "Vairākas iespējamās atbilstības — jāprecizē manuāli."
+        : candidate!.status !== "ranked" ? `Atrasta viena atbilstība un statuss ${candidate!.status.toUpperCase()}. Pārbaudiet pirms iekļaušanas.`
         : candidate!.placement ? "Atrasta viena atbilstība un kolonna “Vieta”. Pārbaudiet pirms iekļaušanas."
         : "Vārds atrasts; vieta nav droši noteikta. Ievadiet to no oriģināla.",
     };

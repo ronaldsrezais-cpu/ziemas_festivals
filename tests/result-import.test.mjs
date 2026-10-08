@@ -41,3 +41,16 @@ test('only recovers a current access code', async () => {
   assert.equal(await recoverSchoolAccessCode(undefined, 'hash:ABCD2345', hash), null);
   assert.equal(await recoverSchoolAccessCode(body, null, hash), null);
 });
+
+test('OE orienteering PDF Pl header and non-finish statuses are recognized without mistaking birth years for places', () => {
+  const entries = [
+    { entryId: 1, firstName: 'Rūta', lastName: 'Irbe', schoolName: '[TESTS 2026] Madonas Valsts ģimnāzija' },
+    { entryId: 2, firstName: 'Madara', lastName: 'Miķelsone', schoolName: 'Rīgas Āgenskalna Valsts ģimnāzija' },
+    { entryId: 3, firstName: 'Rūdolfs Emīls', lastName: 'Melbergs', schoolName: 'Rīgas Valsts 2.ģimnāzija' },
+  ];
+  const text = 'Pl\tName\tYB Club\tText1\tTime\tDiff.\n1\tRūta Irbe\t09 Madonas Valsts ģimnāzija\tMadonas novads\t17:34\t0:00\nMadara Miķelsone\t09 Rīgas Āgenskalna Valsts ģim.\tRīga\tdns\nRūdolfs Emīls Melbergs\t07 Rīgas Valsts 2.ģimnāzija\tRīga\tdnf';
+  const matches = previewResultMatches(text, entries);
+  assert.equal(matches[0].placement, '1');
+  assert.equal(matches[1].placement, ''); assert.equal(matches[1].status, 'dns');
+  assert.equal(matches[2].placement, ''); assert.equal(matches[2].status, 'dnf');
+});
