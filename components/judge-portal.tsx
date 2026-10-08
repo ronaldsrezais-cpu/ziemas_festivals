@@ -191,9 +191,9 @@ export function JudgePortal() {
         </TabsList>
         <TabsContent value="contacts"><JudgeContacts /></TabsContent>
         <TabsContent value="start-protocols"><JudgeStartProtocols sportId={data.judge.sportId} judgeId={data.judge.id} /></TabsContent>
-        <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas, laikus un punktus ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
+        <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
         <TabsContent value="manual">
-          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">Katram dalībniekam ievadiet vietu, laiku vai punktus un saglabājiet. Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
+          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">Katram dalībniekam ievadiet vietu un saglabājiet. Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
           <ManualResults
             data={data}
             remove={(result, entry) => remove("result", result.id, `${entry.firstName} ${entry.lastName} rezultātu`)}
@@ -339,9 +339,12 @@ function ManualResults({
   remove: (result: Result, entry: Entry) => Promise<void>;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
+  const [discipline, setDiscipline] = useState("");
+  const disciplines = [...new Set(data.categories.map(category => category.discipline))];
   return (
     <div className="grid gap-6">
-      {data.categories.map((category) => (
+      <label className="form-label max-w-md">Disciplīna<select className="form-control" value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Visas disciplīnas</option>{disciplines.map(name => <option key={name}>{name}</option>)}</select></label>
+      {data.categories.filter(category => !discipline || category.discipline === discipline).map((category) => (
         <article
           key={category.id}
           className="glass-panel overflow-hidden rounded-3xl"
@@ -531,7 +534,7 @@ function ImportResults({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function analyse() {
-    if (!file || !categoryId) return;
+    if (!file) return;
     setBusy(true);
     setError("");
     setPreview([]);
@@ -543,8 +546,8 @@ function ImportResults({
       const text = await extractFileText(file);
       setExtractedText(text);
       if (!text.trim()) throw new Error("Failā nav nolasāma teksta. Skenētam PDF nepieciešama teksta atpazīšana; izmantojiet Excel vai CSV failu.");
-      const selectedEntries = data.entries.filter((entry) => entry.categoryId === Number(categoryId));
-      if (!selectedEntries.length) throw new Error("Šajā kategorijā nav pieteiktu dalībnieku. Vispirms piesakiet testa dalībniekus.");
+      const selectedEntries = data.entries.filter((entry) => !categoryId || entry.categoryId === Number(categoryId));
+      if (!selectedEntries.length) throw new Error("Izvēlētajā atlasē nav pieteiktu dalībnieku.");
       const matches = previewResultMatches(text, selectedEntries);
       const rows = selectedEntries.map((entry, index) => ({
         ...entry,
@@ -630,9 +633,9 @@ function ImportResults({
         <h2 className="text-xl font-black">Rezultātu faila priekšskatījums</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB. Sistēma
-          salīdzina vārdus un uzvārdus ar izvēlētās kategorijas dalībniekiem.
+          salīdzina vārdus un uzvārdus ar sava sporta veida visu disciplīnu dalībniekiem vai izvēlēto kategoriju.
           Vietu automātiski piedāvā tikai tad, ja atpazīta kolonna “Vieta”, “Place”, “Rank” vai “Position”.
-          Pārbaudiet avota rindu un paši atzīmējiet iekļaujamos dalībniekus. Rezultāta laiku vai punktus ievadiet manuāli.
+          Pārbaudiet avota rindu un paši atzīmējiet iekļaujamos dalībniekus. Ja dalībnieks startē vairākās disciplīnās, pārbaudiet kategoriju un ievadiet attiecīgo vietu no oriģināla — neskaidras atbilstības netiek piešķirtas automātiski.
           Skenētus PDF bez teksta slāņa sistēma nenolasa.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
@@ -648,10 +651,10 @@ function ImportResults({
                 setExtractedText("");
               }}
             >
-              <option value="">Izvēlieties</option>
+              <option value="">Visas disciplīnas un kategorijas</option>
               {data.categories.map((category) => (
                 <option value={category.id} key={category.id}>
-                  {category.name}
+                  {category.discipline} — {category.name}
                 </option>
               ))}
             </select>
@@ -672,7 +675,7 @@ function ImportResults({
           </label>
           <Button
             className="self-end bg-[#0c0942]"
-            disabled={!file || !categoryId || busy}
+            disabled={!file || busy}
             onClick={analyse}
           >
             {busy ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}{" "}
@@ -709,6 +712,7 @@ function ImportResults({
                 <tr>
                   <th>Iekļaut</th>
                   <th>Dalībnieks</th>
+                  <th>Disciplīna / kategorija</th>
                   <th>Skola</th>
                   <th>Vieta</th>
                   <th>Statuss</th>
@@ -737,6 +741,7 @@ function ImportResults({
                       <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.matchNote}</p>
                       {row.sourceLine && <details className="mt-2 max-w-md text-xs font-normal"><summary className="cursor-pointer">Atrasta faila rinda</summary><pre className="mt-1 whitespace-pre-wrap break-words">{row.sourceLine}</pre></details>}
                     </td>
+                    <td>{data.categories.find(category => category.id === row.categoryId)?.discipline}<div className="text-xs text-muted-foreground">{data.categories.find(category => category.id === row.categoryId)?.name}</div></td>
                     <td>{row.schoolName}</td>
                     <td>
                       <input
