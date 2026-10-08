@@ -1,5 +1,7 @@
 "use client";
 
+import { sharedMedalPlaces } from "@/lib/medal-ranking";
+
 import { useEffect, useMemo, useState } from "react";
 import { Download, Filter, Info, Medal, School, Trophy, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -530,6 +532,7 @@ function Medals({
     bronze: number;
   }>;
 }) {
+  const places = sharedMedalPlaces(rows);
   return (
     <article className="glass-panel overflow-hidden rounded-xl">
       {rows.length === 0 ? (
@@ -550,7 +553,7 @@ function Medals({
             <tbody>
               {rows.map((row, index) => (
                 <tr key={row.school}>
-                  <td className="font-black">{index + 1}.</td>
+                  <td className="font-black">{places[index]}.</td>
                   <td className="font-black">{row.school}</td>
                   <td>{row.municipality}</td>
                   <td>{row.gold}</td>

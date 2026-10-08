@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Edit3, FileSignature, KeyRound, Loader2, LogOut, Plus, Save, Trash2, UserRoundPlus, Users } from "lucide-react";
+import { formatPersonName } from "@/lib/person-name";
 import { numberedTeam, teamOptions } from "@/lib/team-registration";
 import { resolveParticipantCategory } from "@/lib/participant-category";
 import { SafetyUpload, type SafetyDocument } from "@/components/safety-upload";
@@ -137,8 +138,8 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
     finally { setBusy(false); }
   }
   return <form onSubmit={submit} className="grid gap-5"><div className="grid gap-4 sm:grid-cols-2">
-    <label className="form-label">Vārds<input className="form-control" value={firstName} onChange={e => setFirstName(e.target.value)} required /></label>
-    <label className="form-label">Uzvārds<input className="form-control" value={lastName} onChange={e => setLastName(e.target.value)} required /></label>
+    <label className="form-label">Vārds<input className="form-control" value={firstName} onChange={e => setFirstName(e.target.value)} onBlur={() => setFirstName(formatPersonName(firstName))} required /></label>
+    <label className="form-label">Uzvārds<input className="form-control" value={lastName} onChange={e => setLastName(e.target.value)} onBlur={() => setLastName(formatPersonName(lastName))} required /></label>
     <label className="form-label">Dzimšanas gads<input className="form-control" type="number" min="2000" max="2030" value={birthYear} onChange={e => changeDemographics(e.target.value, gender)} required /></label>
     <label className="form-label">Dzimums<select className="form-control" value={gender} onChange={e => changeDemographics(birthYear, e.target.value as "F" | "M")}><option value="F">Meitenes / jaunietes</option><option value="M">Zēni / jaunieši</option></select></label>
   </div><div>

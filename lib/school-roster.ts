@@ -3,12 +3,13 @@ import { z } from "zod";
 import { withTransaction, type Transaction } from "@/db/transaction";
 import { categories, entries, leaders, participants, results, schools, settings, sports } from "@/db/schema";
 import { rosterReadiness } from "./roster-readiness";
+import { formatPersonName } from "./person-name";
 import { numberedTeam } from "./team-registration";
 
 export const participantSchema = z.object({
   id: z.number().int().positive().optional(),
-  firstName: z.string().trim().min(2).max(80),
-  lastName: z.string().trim().min(2).max(100),
+  firstName: z.string().trim().min(2).max(80).transform(formatPersonName),
+  lastName: z.string().trim().min(2).max(100).transform(formatPersonName),
   birthYear: z.number().int().min(2000).max(2030),
   gender: z.enum(["F", "M"]),
   registrations: z.array(z.object({
