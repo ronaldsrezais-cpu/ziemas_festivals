@@ -23,6 +23,7 @@ export function participantWorkbook(people: ListedParticipant[]) {
     { header: "Disciplīna", key: "discipline", width: 32 },
     { header: "Kategorija", key: "categoryName", width: 36 },
     { header: "Komanda", key: "teamName", width: 28 },
+    { header: "SIAC numurs", key: "siacNumber", width: 22 },
   ];
   for (const person of people) {
     const row = { id: person.id, firstName: person.firstName, lastName: person.lastName,
@@ -31,7 +32,7 @@ export function participantWorkbook(people: ListedParticipant[]) {
     summary.addRow({ ...row, count: person.registrations.length });
     for (const entry of person.registrations) {
       detail.addRow({ ...row, entryId: entry.id, sportName: entry.sportName,
-        discipline: entry.discipline, categoryName: entry.categoryName, teamName: entry.teamName ?? "" });
+        discipline: entry.discipline, categoryName: entry.categoryName, teamName: entry.teamName ?? "", siacNumber: entry.siacNumber ?? "" });
     }
   }
   for (const sheet of [summary, detail]) {

@@ -9,7 +9,7 @@ registerHooks({ resolve(specifier, context, next) {
 const { participantWorkbook } = await import('../lib/participant-workbook.ts');
 const people = [
   {id:1,firstName:'Jānis',lastName:'Bērziņš',birthYear:2010,gender:'M',schoolId:1,schoolName:'Testa skola',municipality:'Cēsis',schoolStatus:'approved',registrations:[
-    {id:10,sportId:1,sportName:'Slēpošana',categoryId:11,categoryName:'Zēni',discipline:'Distance',teamName:null},
+    {id:10,sportId:1,sportName:'Slēpošana',categoryId:11,categoryName:'Zēni',discipline:'Distance',teamName:null,siacNumber:'00123456'},
     {id:20,sportId:2,sportName:'Slidošana',categoryId:22,categoryName:'Zēni',discipline:'Ātrums',teamName:'Testa komanda'}]},
   {id:2,firstName:'=1+1',lastName:'Kalniņa',birthYear:2012,gender:'F',schoolId:2,schoolName:'Otra skola',municipality:'Rīga',schoolStatus:'pending',registrations:[]}
 ];
@@ -30,6 +30,10 @@ test('xlsx round trip preserves unique people, registrations, Latvian text and t
   assert.equal(list.getCell('B2').value,'Jānis');assert.equal(list.getCell('D2').value,2010);
   assert.equal(list.getCell('I2').value,2);assert.equal(list.getCell('I3').value,0);
   assert.equal(list.getCell('B3').value,'=1+1');assert.equal(list.getCell('B3').type,ExcelJS.ValueType.String);
+  assert.equal(entries.getCell('N1').value,'SIAC numurs');
+  assert.equal(entries.getCell('N2').value,'00123456');
+  assert.equal(entries.getCell('N2').type,ExcelJS.ValueType.String);
+  assert.equal(entries.getCell('N3').value,'');
   assert.equal(list.views[0].ySplit,1);assert.ok(list.autoFilter);
 });
 test('empty export retains headers and no invented participants', () => {

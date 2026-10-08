@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const registrations = await db.select({
     id: entries.id, participantId: entries.participantId,
     sportId: sports.id, sportName: sports.name, categoryId: categories.id,
-    categoryName: categories.name, discipline: categories.discipline, teamName: entries.teamName,
+    categoryName: categories.name, discipline: categories.discipline, teamName: entries.teamName, siacNumber: entries.siacNumber,
   }).from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
     .innerJoin(sports, eq(categories.sportId, sports.id))
     .where(judgeSportId === undefined ? undefined : and(eq(sports.id, judgeSportId), eq(categories.active, true)))

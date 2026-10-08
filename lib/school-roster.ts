@@ -15,6 +15,7 @@ export const participantSchema = z.object({
     categoryId: z.number().int().positive(),
     teamNumber: z.number().int().positive().optional(),
     teamName: z.string().trim().max(80).optional(),
+    siacNumber: z.string().trim().max(40).optional(),
   })).min(1).refine(items => new Set(items.map(item => item.categoryId)).size === items.length,
     "Vienu kategoriju vienam dalībniekam drīkst izvēlēties tikai vienu reizi."),
 });
@@ -23,19 +24,20 @@ export type ParticipantInput = z.infer<typeof participantSchema>;
 
 async function validateRegistrations(tx: Transaction, input: ParticipantInput, schoolId: number) {
   const ids = input.registrations.map(registration => registration.categoryId);
-  const rows = await tx.select({ category: categories, sportMode: sports.mode })
+  const rows = await tx.select({ category: categories, sportMode: sports.mode, sportCode: sports.code })
     .from(categories).innerJoin(sports, eq(categories.sportId, sports.id))
     .where(and(inArray(categories.id, ids), eq(categories.active, true)));
   if (rows.length !== ids.length) throw new Error("Kāda no izvēlētajām disciplīnām nav pieejama.");
   const existing = await tx.select().from(entries)
     .where(and(eq(entries.schoolId, schoolId), inArray(entries.categoryId, ids)));
   const otherEntries = existing.filter(entry => entry.participantId !== input.id);
-  for (const { category, sportMode } of rows) {
+  for (const { category, sportMode, sportCode } of rows) {
     if (input.birthYear < category.minBirthYear || input.birthYear > category.maxBirthYear)
       throw new Error(`${category.name}: dzimšanas gads neatbilst kategorijai.`);
     if (category.gender !== "X" && category.gender !== input.gender)
       throw new Error(`${category.name}: dzimums neatbilst kategorijai.`);
     const registration = input.registrations.find(item => item.categoryId === category.id)!;
+    if (sportCode !== "winter-orienteering") registration.siacNumber = "";
     const categoryEntries = otherEntries.filter(entry => entry.categoryId === category.id);
     if (sportMode === "team") {
       const previous = existing.find(entry => entry.participantId === input.id && entry.categoryId === category.id);
@@ -88,11 +90,12 @@ async function saveParticipant(tx: Transaction, schoolId: number, data: Particip
   for (const registration of data.registrations) {
     const existing = previous.find(entry => entry.categoryId === registration.categoryId);
     const teamName = registration.teamName || null;
+    const siacNumber = registration.siacNumber === undefined ? existing?.siacNumber ?? null : registration.siacNumber || null;
     if (existing) {
-      if (existing.teamName !== teamName)
-        await tx.update(entries).set({ teamName }).where(eq(entries.id, existing.id));
+      if (existing.teamName !== teamName || existing.siacNumber !== siacNumber)
+        await tx.update(entries).set({ teamName, siacNumber }).where(eq(entries.id, existing.id));
     } else {
-      await tx.insert(entries).values({ schoolId, participantId, categoryId: registration.categoryId, teamName });
+      await tx.insert(entries).values({ schoolId, participantId, categoryId: registration.categoryId, teamName, siacNumber });
     }
   }
   return { ok: true, participantId };

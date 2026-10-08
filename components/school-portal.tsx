@@ -7,19 +7,19 @@ import { numberedTeam, teamOptions } from "@/lib/team-registration";
 import { resolveParticipantCategory } from "@/lib/participant-category";
 import { SafetyUpload, type SafetyDocument } from "@/components/safety-upload";
 import { SchoolNameEditor } from "@/components/school-name-editor";
-import type { RosterReadiness } from "@/lib/roster-readiness";
+import { leaderRequirementMessage, type RosterReadiness } from "@/lib/roster-readiness";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Category = { id: number; name: string; discipline: string; gender: "F" | "M" | "X"; minBirthYear: number; maxBirthYear: number; teamMin: number; teamMax: number; schoolLimit: number | null };
-type Sport = { id: number; name: string; mode: "individual" | "team"; categories: Category[] };
+type Sport = { id: number; code: string; name: string; mode: "individual" | "team"; categories: Category[] };
 type PortalData = {
   school: { id: number; name: string; municipality: string; teacherName: string; teacherRole: string; email: string; phone: string; rosterRevision: number };
   leaders: Array<{ id: number; fullName: string; role: string; email: string | null; phone: string | null }>;
   participants: Array<{ id: number; firstName: string; lastName: string; birthYear: number; gender: "F" | "M" }>;
-  entries: Array<{ id: number; participantId: number; categoryId: number; teamName: string | null }>;
+  entries: Array<{ id: number; participantId: number; categoryId: number; teamName: string | null; siacNumber: string | null }>;
   sports: Sport[];
   safetyDocument: SafetyDocument | null;
   requiredLeaders: number;
@@ -27,7 +27,7 @@ type PortalData = {
   readiness: RosterReadiness;
 };
 
-type RegistrationDraft = { sportId?: string; categoryId: string; teamName: string; teamNumber?: string };
+type RegistrationDraft = { sportId?: string; categoryId: string; teamName: string; teamNumber?: string; siacNumber?: string };
 
 export function SchoolPortal() {
   const [data, setData] = useState<PortalData | null>(null);
@@ -80,7 +80,7 @@ export function SchoolPortal() {
       <Info label="Komandas vadītāji" value={`${data.leaders.length} / ${data.requiredLeaders}`} icon={<UserRoundPlus/>} warning={data.leaders.length < data.requiredLeaders}/>
       <div className="glass-panel flex flex-wrap content-center gap-2 rounded-3xl p-5 md:col-span-1"><Button asChild className="bg-[#0c0942]"><Link href="/skolai/drosibas-lapa"><FileSignature/> Drošības parakstu lapa</Link></Button></div>
     </section>
-    {data.leaders.length < data.requiredLeaders && <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-900">Pie {data.participants.length} dalībniekiem nepieciešami vismaz {data.requiredLeaders} komandas vadītāji. Pievienojiet vēl {data.requiredLeaders - data.leaders.length}.</div>}
+    {data.leaders.length < data.requiredLeaders && <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-900">{leaderRequirementMessage(data.participants.length, data.requiredLeaders, data.leaders.length)}</div>}
     <SafetyUpload schoolId={data.school.id} revision={data.school.rosterRevision} document={data.safetyDocument} onSaved={() => load(true)} />
     <Tabs defaultValue="participants">
       <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white"><TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger><TabsTrigger value="leaders" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandas vadītāji</TabsTrigger></TabsList>
@@ -132,7 +132,7 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
       if (resolvedRows.some(({ selected }) => !selected))
         throw new Error("Pārbaudiet dzimšanas gadu un sporta veidu. Ja piedāvātas vairākas disciplīnas vai ieskaites, izvēlieties nepieciešamo.");
       await onSave({ id: participant?.id, firstName, lastName, birthYear: Number(birthYear), gender,
-        registrations: resolvedRows.map(({ row, selected }) => ({ categoryId: selected!.id, teamNumber: Number(row.teamNumber || 1) })) });
+        registrations: resolvedRows.map(({ row, selected, sport }) => ({ categoryId: selected!.id, teamNumber: Number(row.teamNumber || 1), siacNumber: sport?.code === "winter-orienteering" ? row.siacNumber ?? "" : "" })) });
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās saglabāt."); }
     finally { setBusy(false); }
   }
@@ -150,7 +150,7 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
       const choiceLabel = disciplines.size === options.length ? "Disciplīna" : disciplines.size === 1 ? "Ieskaites veids" : "Disciplīna / ieskaites veids";
       const names = teamOptions(entries.filter(entry => entry.categoryId === selected?.id));
       return <div key={index} className="grid gap-3 rounded-2xl bg-[#f0f1ff] p-4 sm:grid-cols-[1fr_1fr_auto]">
-        <label className="form-label">Sporta veids<select className="form-control" value={row.sportId ?? ""} required onChange={e => updateRow(index, { sportId: e.target.value, categoryId: "", teamNumber: "1" })}><option value="">Izvēlieties sporta veidu</option>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>
+        <label className="form-label">Sporta veids<select className="form-control" value={row.sportId ?? ""} required onChange={e => updateRow(index, { sportId: e.target.value, categoryId: "", teamNumber: "1", siacNumber: "" })}><option value="">Izvēlieties sporta veidu</option>{sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>
         <div className="grid content-start gap-3">
           {options.length > 1 && <label className="form-label">{choiceLabel}<select className="form-control" value={selected ? String(selected.id) : ""} required onChange={e => updateRow(index, { categoryId: e.target.value, teamNumber: "1" })}><option value="">Izvēlieties</option>{options.map(category => <option key={category.id} value={category.id}>{disciplines.size === options.length ? category.discipline : disciplines.size === 1 ? category.name : `${category.discipline} — ${category.name}`}</option>)}</select><span className="text-xs font-normal text-muted-foreground">Šo izvēli nevar noteikt tikai pēc dzimšanas gada un dzimuma.</span></label>}
           <div role="status" className={`rounded-xl border p-3 ${selected ? "border-emerald-200 bg-white" : "border-[#c7cfff] bg-white/70"}`}>
@@ -159,6 +159,7 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
           </div>
         </div>
         <Button type="button" variant="ghost" size="icon" aria-label={`Noņemt ${index + 1}. sporta pieteikumu`} className="self-end text-red-700" disabled={rows.length === 1} onClick={() => setRows(values => values.filter((_, i) => i !== index))}><Trash2 /></Button>
+        {sport?.code === "winter-orienteering" && <label className="form-label sm:col-span-2">SIAC numurs (neobligāts)<input className="form-control" inputMode="numeric" maxLength={40} value={row.siacNumber ?? ""} onChange={e => updateRow(index, { siacNumber: e.target.value })} placeholder="Dalībnieka SIAC numurs" /><span className="text-xs font-normal text-muted-foreground">Ja numurs nav zināms, lauku var atstāt tukšu.</span></label>}
         {sport?.mode === "team" && selected && selected.schoolLimit !== 1 && <label className="form-label sm:col-span-2">Komanda (skolas ietvaros)<select className="form-control" value={row.teamNumber || "1"} onChange={e => updateRow(index, { teamNumber: e.target.value })}>{Array.from({ length: Math.min(selected.schoolLimit ?? names.length + 1, names.length + 1) }, (_, i) => <option key={i + 1} value={i + 1}>{names[i] ?? numberedTeam(names.map(teamName => ({ teamName })), i + 1)}</option>)}</select><span className="text-xs font-normal">Komandas nosaukums nav jāievada.</span></label>}
       </div>;
     })}</div>
@@ -180,7 +181,7 @@ function ParticipantTable({ data, onDelete, onEdit }: { data: PortalData; onDele
     <label className="form-label">Meklēt dalībnieku<input className="form-control" value={search} onChange={event => setSearch(event.target.value)} placeholder="Vārds, uzvārds" /></label>
     <label className="form-label">Sporta veids<select className="form-control" value={sportId} onChange={event => { setSportId(event.target.value); setCategoryId(""); }}><option value="">Visi sporta veidi</option>{data.sports.map(sport => <option key={sport.id} value={sport.id}>{sport.name}</option>)}</select></label>
     <label className="form-label">Disciplīna / kategorija<select className="form-control" value={categoryId} onChange={event => setCategoryId(event.target.value)}><option value="">Visas kategorijas</option>{(selectedSport ? [selectedSport] : data.sports).flatMap(sport => sport.categories.map(category => <option key={category.id} value={category.id}>{sport.name} — {category.name}</option>))}</select></label>
-  </div><p role="status" className="mb-3 text-sm text-muted-foreground">Atlasīti {visible.length} no {data.participants.length} dalībniekiem</p><div className="glass-panel overflow-hidden rounded-3xl">{visible.length === 0 ? <p className="p-8 text-center font-bold text-[#65647b]">Ar izvēlētajiem filtriem dalībnieku nav.</p> : <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Dalībnieks</th><th>Dzimšanas gads</th><th>Pieteiktie sporta veidi</th><th></th></tr></thead><tbody>{visible.map((person) => { const personEntries = data.entries.filter((entry) => entry.participantId === person.id); const regs = personEntries.map((entry) => ({ categoryId: String(entry.categoryId), teamName: entry.teamName ?? "", teamNumber: String(Math.max(0, teamOptions(data.entries.filter(item => item.categoryId === entry.categoryId)).indexOf(entry.teamName ?? "")) + 1) })); return <tr key={person.id}><td className="font-black">{person.firstName} {person.lastName}<div className="mt-1 text-xs font-normal text-[#65647b]">{person.gender === "F" ? "Meitenes / jaunietes" : "Zēni / jaunieši"}</div></td><td>{person.birthYear}</td><td>{personEntries.map((entry) => { const sport = data.sports.find((item) => item.categories.some((category) => category.id === entry.categoryId)); const category = sport?.categories.find((item) => item.id === entry.categoryId); return <span key={entry.id} className="mr-2 inline-flex rounded-full bg-[#e9ecff] px-2.5 py-1 text-xs font-bold text-[#2910bf]">{sport?.name}: {category?.name}{entry.teamName ? ` — ${entry.teamName}` : ""}</span>; })}</td><td><div className="flex justify-end gap-1"><ParticipantEditor sports={data.sports} entries={data.entries} person={person} registrations={regs} editable={data.rosterEditable} onSave={onEdit}/><Button size="icon-sm" variant="ghost" className="text-red-700" disabled={!data.rosterEditable} aria-label={`Noņemt ${person.firstName} ${person.lastName}`} onClick={() => onDelete(person.id)}><Trash2/></Button></div></td></tr>; })}</tbody></table></div>}</div></section>; }
+  </div><p role="status" className="mb-3 text-sm text-muted-foreground">Atlasīti {visible.length} no {data.participants.length} dalībniekiem</p><div className="glass-panel overflow-hidden rounded-3xl">{visible.length === 0 ? <p className="p-8 text-center font-bold text-[#65647b]">Ar izvēlētajiem filtriem dalībnieku nav.</p> : <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Dalībnieks</th><th>Dzimšanas gads</th><th>Pieteiktie sporta veidi</th><th></th></tr></thead><tbody>{visible.map((person) => { const personEntries = data.entries.filter((entry) => entry.participantId === person.id); const regs = personEntries.map((entry) => ({ categoryId: String(entry.categoryId), siacNumber: entry.siacNumber ?? "", teamName: entry.teamName ?? "", teamNumber: String(Math.max(0, teamOptions(data.entries.filter(item => item.categoryId === entry.categoryId)).indexOf(entry.teamName ?? "")) + 1) })); return <tr key={person.id}><td className="font-black">{person.firstName} {person.lastName}<div className="mt-1 text-xs font-normal text-[#65647b]">{person.gender === "F" ? "Meitenes / jaunietes" : "Zēni / jaunieši"}</div></td><td>{person.birthYear}</td><td>{personEntries.map((entry) => { const sport = data.sports.find((item) => item.categories.some((category) => category.id === entry.categoryId)); const category = sport?.categories.find((item) => item.id === entry.categoryId); return <span key={entry.id} className="mr-2 inline-flex rounded-full bg-[#e9ecff] px-2.5 py-1 text-xs font-bold text-[#2910bf]">{sport?.name}: {category?.name}{entry.teamName ? ` — ${entry.teamName}` : ""}{entry.siacNumber ? ` · SIAC: ${entry.siacNumber}` : ""}</span>; })}</td><td><div className="flex justify-end gap-1"><ParticipantEditor sports={data.sports} entries={data.entries} person={person} registrations={regs} editable={data.rosterEditable} onSave={onEdit}/><Button size="icon-sm" variant="ghost" className="text-red-700" disabled={!data.rosterEditable} aria-label={`Noņemt ${person.firstName} ${person.lastName}`} onClick={() => onDelete(person.id)}><Trash2/></Button></div></td></tr>; })}</tbody></table></div>}</div></section>; }
 
 function ParticipantEditor({ sports, entries, person, registrations, editable, onSave }: {
   sports: Sport[]; entries: PortalData["entries"]; person: PortalData["participants"][number]; registrations: RegistrationDraft[];

@@ -66,7 +66,7 @@ export function ParticipantList() {
       <tbody>{filtered.map((person) => <tr key={person.id}>
         <td className="font-bold">{person.firstName} {person.lastName}</td><td>{person.birthYear}</td><td>{genderLabel(person.gender)}</td>
         <td>{person.schoolName}<div className="text-xs text-muted-foreground">{person.municipality} · {schoolStatusLabel(person.schoolStatus)}</div></td>
-        <td>{person.registrations.length ? person.registrations.map((entry) => <div key={entry.id} className="mb-1">{entry.sportName} — {entry.discipline}, {entry.categoryName}{entry.teamName ? ` (${entry.teamName})` : ""}</div>) : "Nav pieteikumu"}</td>
+        <td>{person.registrations.length ? person.registrations.map((entry) => <div key={entry.id} className="mb-1">{entry.sportName} — {entry.discipline}, {entry.categoryName}{entry.teamName ? ` (${entry.teamName})` : ""}{entry.siacNumber && <span className="ml-2 font-bold">SIAC: {entry.siacNumber}</span>}</div>) : "Nav pieteikumu"}</td>
       </tr>)}</tbody></table></div>
     {!filtered.length && <p className="p-6 text-center text-muted-foreground">Nav dalībnieku, ko parādīt ar izvēlētajiem filtriem.</p>}
   </section>;

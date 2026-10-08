@@ -119,6 +119,7 @@ export const entries = pgTable(
     categoryId: integer("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
     participantId: integer("participant_id").notNull().references(() => participants.id, { onDelete: "cascade" }),
     teamName: text("team_name"),
+    siacNumber: text("siac_number"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [

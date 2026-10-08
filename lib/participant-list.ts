@@ -1,6 +1,6 @@
 export type Registration = {
   id: number; sportId: number; sportName: string; categoryId: number;
-  categoryName: string; discipline: string; teamName: string | null;
+  categoryName: string; discipline: string; teamName: string | null; siacNumber?: string | null;
 };
 export type ListedParticipant = {
   id: number; firstName: string; lastName: string; birthYear: number;
