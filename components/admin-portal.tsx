@@ -883,6 +883,12 @@ function SettingsSection({
             }
           />
         </div>
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-2xl bg-[#f0f1ff] p-4">
+          <div><strong>Starta protokolu sadaļa publiska</strong>
+            <p className="text-sm text-[#65647b]">Parādīt starta protokolu sadaļu un atļaut publiski atvērt publicētos failus. Noslēpjot, tiesnešiem un administratoram protokoli paliek pieejami.</p></div>
+          <Switch aria-label="Starta protokolu sadaļa publiska" checked={data.settings.start_protocols_public !== "false"}
+            disabled={savingSetting} onCheckedChange={value => updateSetting("start_protocols_public", String(value))} />
+        </div>
       </section>
       <form onSubmit={upload} className="glass-panel rounded-3xl p-6">
         <h2 className="text-xl font-black">Akreditācijas kartes dizains</h2>

@@ -200,3 +200,22 @@ test('protocol mail escapes user content and uses a fixed public origin', () => 
   assert.ok(!mail.html.includes('<img>.pdf'));
   assert.match(mail.body, /https:\/\/ziemas-festivals.vercel.app\/api\/start-protocols\/12/);
 });
+
+test('hidden public protocol section denies anonymous downloads but keeps staff access', async () => {
+  state.protocols[0].published = true;
+  state.settings.push({ key: 'start_protocols_public', value: 'false' });
+  state.session = null;
+  const response = await publicApi.GET();
+  assert.deepEqual(await response.json(), { visible: false, protocols: [] });
+  assert.equal((await download(1)).status, 403);
+  state.session = { role: 'judge', subjectId: 1 };
+  assert.equal((await download(1)).status, 200);
+  state.session = { role: 'admin' };
+  assert.equal((await download(1)).status, 200);
+  state.settings = state.settings.filter(setting => setting.key !== 'start_protocols_public');
+  state.session = null;
+  const visible = await (await publicApi.GET()).json();
+  assert.equal(visible.visible, true);
+  assert.equal(visible.protocols.length, 1);
+  assert.equal((await download(1)).status, 200);
+});

@@ -5,13 +5,15 @@ import { startProtocols } from "@/db/schema";
 import { activeJudge } from "@/lib/active-judge";
 import { getSession } from "@/lib/security";
 
+import { startProtocolsPublic } from "@/lib/start-protocol-visibility";
+
 export const dynamic = "force-dynamic";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
   if (!Number.isSafeInteger(id) || id < 1) return new Response("Nav atrasts", { status: 404 });
   const [protocol] = await getDb().select().from(startProtocols).where(eq(startProtocols.id, id)).limit(1);
   if (!protocol) return new Response("Nav atrasts", { status: 404 });
-  if (!protocol.published && !await getSession("admin")) {
+  if ((!protocol.published || !await startProtocolsPublic()) && !await getSession("admin")) {
     const judge = await activeJudge();
     if (!judge || judge.sportId !== protocol.sportId) return new Response("Nav atļauts", { status: 403 });
   }

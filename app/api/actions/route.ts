@@ -654,6 +654,7 @@ export async function POST(request: Request) {
               "registration_open",
               "roster_editing_open",
               "participants_public",
+              "start_protocols_public",
             ]),
             value: z.string().max(80),
           })
