@@ -79,6 +79,7 @@ export function JudgePortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
   const load = useCallback(async (refresh = false) => {
     if (!refresh) setLoading(true);
     const response = await fetch("/api/actions?view=judge");
@@ -118,6 +119,7 @@ export function JudgePortal() {
     setData(null);
   }
   async function publish() {
+    if (importBusy) return;
     if (!confirm("Publicēt visus saglabātos šī sporta veida rezultātus?"))
       return;
     try { await action({ action: "publish-sport" }); setNotice("Rezultāti publicēti publiskajā lapā."); await load(true); }
@@ -160,9 +162,10 @@ export function JudgePortal() {
         </div>
         <Button
           onClick={publish}
+          disabled={importBusy}
           className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]"
         >
-          <CheckCircle2 /> Publicēt rezultātus
+          <CheckCircle2 /> {importBusy ? "Notiek imports…" : "Publicēt rezultātus"}
         </Button>
       </div>
       <Tabs defaultValue="participants">
@@ -206,6 +209,7 @@ export function JudgePortal() {
         <TabsContent value="import">
           <ImportResults
             data={data}
+            onBusyChange={setImportBusy}
             save={async (payload) =>
               action({ action: "save-result", ...payload })
             }
@@ -344,7 +348,9 @@ function ManualResults({
   return (
     <div className="grid gap-6">
       <label className="form-label max-w-md">Disciplīna<select className="form-control" value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Visas disciplīnas</option>{disciplines.map(name => <option key={name}>{name}</option>)}</select></label>
-      {data.categories.filter(category => !discipline || category.discipline === discipline).map((category) => (
+      {disciplines.filter(name => !discipline || name === discipline).map(name => <section key={name} className="grid gap-4">
+        <h2 className="text-2xl font-black">{name}</h2>
+        {data.categories.filter(category => category.discipline === name).map((category) => (
         <article
           key={category.id}
           className="glass-panel overflow-hidden rounded-3xl"
@@ -370,6 +376,11 @@ function ManualResults({
               <tbody>
                 {data.entries
                   .filter((entry) => entry.categoryId === category.id)
+                  .sort((a, b) => {
+                    const first = data.results.find(result => result.entryId === a.entryId);
+                    const second = data.results.find(result => result.entryId === b.entryId);
+                    return (first?.placement ?? Infinity) - (second?.placement ?? Infinity) || `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "lv");
+                  })
                   .map((entry) => (
                     <ManualRow
                       key={`${entry.entryId}:${data.results.find(result => result.entryId === entry.entryId)?.updatedAt ?? "new"}`}
@@ -390,7 +401,7 @@ function ManualResults({
             </p>
           )}
         </article>
-      ))}
+      ))}</section>)}
     </div>
   );
 }
@@ -520,10 +531,12 @@ async function extractFileText(file: File) {
 
 function ImportResults({
   data,
+  onBusyChange,
   save,
   finished,
 }: {
   data: JudgeData;
+  onBusyChange: (busy: boolean) => void;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
   finished: (message: string) => Promise<void>;
 }) {
@@ -535,7 +548,7 @@ function ImportResults({
   const [error, setError] = useState("");
   async function analyse() {
     if (!file) return;
-    setBusy(true);
+    setBusy(true); onBusyChange(true);
     setError("");
     setPreview([]);
     setExtractedText("");
@@ -561,12 +574,12 @@ function ImportResults({
         reason instanceof Error ? reason.message : "Failu neizdevās nolasīt.",
       );
     } finally {
-      setBusy(false);
+      setBusy(false); onBusyChange(false);
     }
   }
   async function importRows() {
     if (!file || !preview.some((row) => row.matched && (row.placement || row.status !== "ranked"))) return;
-    setBusy(true);
+    setBusy(true); onBusyChange(true);
     setError("");
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -623,7 +636,7 @@ function ImportResults({
         reason instanceof Error ? reason.message : "Importēšana neizdevās.",
       );
     } finally {
-      setBusy(false);
+      setBusy(false); onBusyChange(false);
     }
   }
   return (
