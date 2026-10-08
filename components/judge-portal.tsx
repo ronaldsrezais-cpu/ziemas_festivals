@@ -694,8 +694,13 @@ function ImportResults({
             <div>
               <h3 className="text-lg font-black">Atbilstību priekšskatījums</h3>
               <p className="text-sm text-[#65647b]">
-                Atzīmējiet tikai pareizi identificētās rindas.
+                Atzīmējiet tikai pareizi identificētās rindas. Saglabā tikai atzīmētās rindas ar vietu vai DNS/DNF/DSQ statusu.
               </p>
+              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
+                <input type="checkbox" checked={preview.every(row => row.matched)} disabled={busy}
+                  onChange={event => setPreview(rows => rows.map(row => ({ ...row, matched: event.target.checked })))} />
+                Iekļaut visus ({preview.length})
+              </label>
             </div>
             <Button
               onClick={importRows}
@@ -724,6 +729,8 @@ function ImportResults({
                       <input
                         type="checkbox"
                         checked={row.matched}
+                        disabled={busy}
+                        aria-label={`Iekļaut ${row.firstName} ${row.lastName}`}
                         onChange={(e) =>
                           setPreview((values) =>
                             values.map((item, itemIndex) =>
