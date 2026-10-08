@@ -361,7 +361,6 @@ function ManualResults({
                   <th>Skola</th>
                   <th>Vieta</th>
                   <th>Statuss</th>
-                  <th>Rezultāts</th>
                   <th></th>
                 </tr>
               </thead>
@@ -410,7 +409,6 @@ function ManualRow({
   const [status, setStatus] = useState<Result["status"]>(
     result?.status ?? "ranked",
   );
-  const [score, setScore] = useState(result?.score ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit() {
@@ -420,7 +418,7 @@ function ManualRow({
       entryId: entry.entryId,
       placement: placement ? Number(placement) : null,
       status,
-      score,
+      score: result?.score ?? "",
     }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās saglabāt."); }
     finally { setBusy(false); }
   }
@@ -458,14 +456,6 @@ function ManualRow({
           <option value="dnf">DNF</option>
           <option value="dsq">DSQ</option>
         </select>
-      </td>
-      <td>
-        <input
-          className="form-control min-w-28"
-          value={score}
-          onChange={(e) => setScore(e.target.value)}
-          placeholder="Laiks / punkti"
-        />
       </td>
       <td>
         <Button
@@ -722,7 +712,6 @@ function ImportResults({
                   <th>Skola</th>
                   <th>Vieta</th>
                   <th>Statuss</th>
-                  <th>Rezultāts</th>
                 </tr>
               </thead>
               <tbody>
@@ -787,21 +776,6 @@ function ImportResults({
                         <option value="dnf">DNF</option>
                         <option value="dsq">DSQ</option>
                       </select>
-                    </td>
-                    <td>
-                      <input
-                        className="form-control min-w-28"
-                        value={row.score}
-                        onChange={(e) =>
-                          setPreview((values) =>
-                            values.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, score: e.target.value }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
                     </td>
                   </tr>
                 ))}
