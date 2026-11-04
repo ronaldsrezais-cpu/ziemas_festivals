@@ -60,7 +60,7 @@ export function SchoolPortal() {
   async function logout() { await action({ action: "logout" }); setData(null); }
 
   return <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-    <div className="flex flex-wrap items-start justify-between gap-4"><PageHeading eyebrow={data.school.municipality} title={data.school.name} description="Pārvaldiet komandas vadītājus, dalībniekus un pieteikumus sporta veidos."/><div className="flex flex-wrap items-center gap-2"><SchoolNameEditor name={data.school.name} onSave={async (name, previousName) => { await action({ action: "rename-school", name, previousName }); setNotice("Skolas nosaukums saglabāts."); }} /><Button variant="outline" onClick={logout}><LogOut/> Iziet</Button></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><PageHeading eyebrow={data.school.municipality} title={data.school.name}/><div className="flex flex-wrap items-center gap-2"><SchoolNameEditor name={data.school.name} onSave={async (name, previousName) => { await action({ action: "rename-school", name, previousName }); setNotice("Skolas nosaukums saglabāts."); }} /><Button variant="outline" onClick={logout}><LogOut/> Iziet</Button></div></div>
     {error && <p className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-800">{error}</p>}
     {notice && <p role="status" className="mb-5 rounded-2xl bg-emerald-50 p-4 font-bold text-emerald-900">{notice}</p>}
     {!data.rosterEditable && <p className="mb-5 rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">Komandas sastāva pievienošana un labošana ir slēgta. Saglabātie dalībnieki paliek reģistrēti; nepabeigts pieteikums netiek automātiski pabeigts. Ja pieteikums nav pabeigts vai vajadzīgas izmaiņas, sazinieties ar organizatoru.</p>}
@@ -68,7 +68,6 @@ export function SchoolPortal() {
       <div>
         <h2 className="text-xl font-black">Komandas pieteikums: {data.readiness.submitted ? "pabeigts" : "nav pabeigts"}</h2>
         <p className="mt-2 text-sm text-muted-foreground">Katrs saglabātais dalībnieks jau ir reģistrēts. Ar pogu “Pabeigt pieteikumu” apstipriniet, ka sastāvs ir gatavs. Pēc izmaiņām tas jāapstiprina vēlreiz.</p>
-        <p className="mt-2 text-sm text-muted-foreground">Drošības lapas augšupielāde nav obligāta pieteikuma pabeigšanai. Parakstīto lapu var iesniegt arī klātienē.</p>
         {data.readiness.issues.length > 0 && <ul className="mt-2 list-inside list-disc text-sm text-amber-900">{data.readiness.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
         {data.readiness.canSubmit && !data.readiness.submitted && <p className="mt-2 text-sm">Pārbaudiet ievadīto sastāvu un nospiediet “Pabeigt pieteikumu”.</p>}
       </div>
