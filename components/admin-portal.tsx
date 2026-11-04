@@ -350,31 +350,17 @@ function SchoolsTable({
   return (
     <div className="glass-panel overflow-hidden rounded-3xl">
       <p className="border-b px-5 py-3 text-sm text-muted-foreground">Drošības lapas ailē redzama elektroniskā iesniegšana. Parakstīto lapu var iesniegt arī klātienē; augšupielāde nav obligāta pieteikuma pabeigšanai.</p>
-      <div className="overflow-x-auto">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Skola</th>
-              <th>Kontaktpersona</th>
-              <th>Dalībnieki / vadītāji</th>
-              <th>Komandas pieteikums</th>
-              <th>Drošības lapa (elektroniski)</th>
-              <th>Statuss</th>
-              <th>Piekļuves kods</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="grid gap-4 bg-[#f7f7fc] p-3 sm:p-5">
             {data.schools.map((school) => (
-              <tr key={school.id}>
-                <td>
+              <article key={school.id} aria-label={school.name} className="grid min-w-0 gap-4 rounded-2xl border bg-white p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+                <div className="min-w-0 [overflow-wrap:anywhere] border-b pb-3 sm:col-span-2 xl:col-span-3"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Skola</p>
                   <strong>{school.name}</strong>
                   <div className="text-xs text-[#65647b]">
                     {school.municipality}
                   </div>
                   <div className="mt-2"><SchoolNameEditor name={school.name} onSave={(name, previousName) => rename(school.id, name, previousName)} /></div>
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Kontaktpersona</p>
                   {school.teacherName}
                   <div className="text-xs text-[#65647b]">
                     {school.teacherRole}
@@ -383,28 +369,28 @@ function SchoolsTable({
                     <br />
                     {school.phone}
                   </div>
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Dalībnieki / vadītāji</p>
                   {school.participantCount} / {school.leaderCount}
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Komandas pieteikums</p>
                   <strong className={school.readiness.submitted ? "text-emerald-800" : "text-amber-900"}>
                     {school.readiness.submitted ? "Pabeigts" : school.readiness.canSubmit ? "Jāapstiprina sastāvs" : "Nepilnīgs"}
                   </strong>
                   {school.readiness.issues.map(issue => <p key={issue} className="mt-1 text-xs text-muted-foreground">{issue}</p>)}
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Drošības lapa (elektroniski)</p>
                   <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : school.safetyDocument ? "text-amber-900" : "text-muted-foreground"}>{school.safetyDocument?.status === "submitted" ? "Iesniegta elektroniski" : school.safetyDocument ? "Iesniegta elektroniski — skolas dati vai sastāvs mainīts" : "Elektroniski nav iesniegta"}</strong>
                   {school.safetyDocument && <><a className="mt-1 block break-all text-xs text-primary underline" href={`/api/safety-documents/${school.safetyDocument.id}`}>{school.safetyDocument.fileName}</a><span className="text-xs text-muted-foreground">{new Date(school.safetyDocument.createdAt).toLocaleString("lv-LV")}</span></>}
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Statuss</p>
                   <Status value={school.status} />
-                </td>
-                <td>
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Piekļuves kods</p>
                   {school.accessCode ? <code className="select-all whitespace-nowrap rounded bg-slate-100 px-2 py-1 text-base font-bold tracking-wider">{school.accessCode}</code> : <span className="text-xs text-muted-foreground">{school.status === "approved" ? "Kods nav pieejams" : "Pēc apstiprināšanas"}</span>}
-                </td>
-                <td>
-                  <div className="flex justify-end gap-1">
+                </div>
+                <div className="min-w-0 [overflow-wrap:anywhere] border-t pt-3 sm:col-span-2 xl:col-span-3"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Darbības</p>
+                  <div className="flex flex-wrap justify-start gap-2">
                     <Button size="sm" variant="outline" className="text-red-700" onClick={() => remove(school)} aria-label={`Dzēst skolas pieteikumu: ${school.name}`}><Trash2 /> Dzēst</Button>
                     {school.status !== "approved" && (
                       <Button
@@ -426,11 +412,9 @@ function SchoolsTable({
                       </Button>
                     )}
                   </div>
-                </td>
-              </tr>
+                </div>
+              </article>
             ))}
-          </tbody>
-        </table>
       </div>
       {data.schools.length === 0 && (
         <p className="p-8 text-center font-bold text-[#65647b]">
