@@ -421,30 +421,16 @@ function Results({
                   </p>
                 )}
               </div>
-              {Array.from(
-                new Set(
-                  rows
-                    .filter((row) => row.sportId === item.id)
-                    .map((row) => row.sourceUploadId)
-                    .filter(Boolean),
-                ),
-              ).map((uploadId) => {
-                const file = data.uploads.find(
-                  (upload) => upload.id === uploadId,
-                );
-                return file ? (
-                  <a
-                    key={uploadId}
-                    href={`/api/files/${uploadId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold hover:bg-white/20"
-                  >
-                    <Download className="size-4" /> {file.fileName}
-                  </a>
-                ) : null;
-              })}
             </div>
+            {data.uploads.some(file => rows.some(row => row.sportId === item.id && row.sourceUploadId === file.id)) && <section aria-label={`${item.name} rezultātu dokumenti`} className="border-b border-[#c7cfff] bg-[#f0f1ff] p-5">
+              <h3 className="text-lg font-black text-[#0c0942]">Rezultātu dokumenti</h3>
+              <p className="mt-1 text-sm text-[#65647b]">Atveriet tiesneša augšupielādēto rezultātu failu.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">{data.uploads.filter(file => rows.some(row => row.sportId === item.id && row.sourceUploadId === file.id)).map(file => <a
+                key={file.id} href={`/api/files/${file.id}`} target="_blank" rel="noreferrer"
+                className="flex min-w-0 items-center gap-3 rounded-xl border-2 border-[#2910bf] bg-white p-4 font-bold text-[#2910bf] transition-colors hover:bg-[#e9ecff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2910bf]">
+                <Download className="size-6 shrink-0" /><span className="min-w-0"><span className="block text-xs font-black uppercase tracking-wide">Atvērt rezultātu failu</span><span className="mt-1 block break-words">{file.fileName}</span></span>
+              </a>)}</div>
+            </section>}
             {item.categories
               .filter((category) =>
                 rows.some((row) => row.categoryId === category.id),
@@ -494,7 +480,6 @@ function ResultTable({
               <th>Vieta</th>
               <th>{team ? "Komanda" : "Dalībnieks"}</th>
               <th>Skola</th>
-              <th>Rezultāts</th>
             </tr>
           </thead>
           <tbody>
@@ -511,7 +496,6 @@ function ResultTable({
                     : `${row.participantName} ${row.participantLastName}`}
                 </td>
                 <td>{row.schoolName}</td>
-                <td>{row.score ?? "—"}</td>
               </tr>
             ))}
           </tbody>
