@@ -43,7 +43,16 @@ export async function GET(request: Request) {
     const list = byParticipant.get(participantId) ?? [];
     list.push(entry); byParticipant.set(participantId, list);
   }
-  const rows = people.map((person) => ({ ...person, registrations: byParticipant.get(person.id) ?? [] }));
+  const otherRegistrations = judgeSportId !== undefined && people.length ? await db.select({
+    participantId: entries.participantId, sportId: sports.id, sportName: sports.name,
+  }).from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
+    .innerJoin(sports, eq(categories.sportId, sports.id))
+    .where(and(inArray(entries.participantId, people.map(person => person.id)), eq(categories.active, true), eq(sports.active, true))) : [];
+  const rows = people.map((person) => ({ ...person, registrations: byParticipant.get(person.id) ?? [],
+    ...(judgeSportId === undefined ? {} : { otherSports: [...new Set(otherRegistrations
+      .filter(entry => entry.participantId === person.id && entry.sportId !== judgeSportId)
+      .map(entry => entry.sportName))].sort((a, b) => a.localeCompare(b, "lv")) }),
+  }));
   const query = new URL(request.url).searchParams;
   const filtered = filterParticipants(rows, {
     school: query.get("school") ?? "", sport: query.get("sport") ?? "",

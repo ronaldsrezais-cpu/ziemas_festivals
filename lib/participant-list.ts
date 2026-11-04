@@ -5,7 +5,7 @@ export type Registration = {
 export type ListedParticipant = {
   id: number; firstName: string; lastName: string; birthYear: number;
   gender: string; schoolId: number; schoolName: string; municipality: string;
-  schoolStatus: string; registrations: Registration[];
+  schoolStatus: string; registrations: Registration[]; otherSports?: string[];
 };
 export type ParticipantFilters = { school?: string; sport?: string; category?: string; search?: string };
 export function filterParticipants(rows: ListedParticipant[], filters: ParticipantFilters) {

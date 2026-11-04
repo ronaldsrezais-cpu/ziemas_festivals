@@ -64,7 +64,7 @@ export function ParticipantList() {
     {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-red-800">{error}</p>}
     <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Dalībnieks</th><th>Dzimšanas gads</th><th>Dzimums</th><th>Skola / novads</th><th>Sporta veidi un kategorijas</th></tr></thead>
       <tbody>{filtered.map((person) => <tr key={person.id}>
-        <td className="font-bold">{person.firstName} {person.lastName}</td><td>{person.birthYear}</td><td>{genderLabel(person.gender)}</td>
+        <td className="font-bold">{person.firstName} {person.lastName}{Boolean(person.otherSports?.length) && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-medium text-amber-900">Pieteikts arī: {person.otherSports!.join(", ")}</p>}</td><td>{person.birthYear}</td><td>{genderLabel(person.gender)}</td>
         <td>{person.schoolName}<div className="text-xs text-muted-foreground">{person.municipality} · {schoolStatusLabel(person.schoolStatus)}</div></td>
         <td>{person.registrations.length ? person.registrations.map((entry) => <div key={entry.id} className="mb-1">{entry.sportName} — {entry.discipline}, {entry.categoryName}{entry.teamName ? ` (${entry.teamName})` : ""}{entry.siacNumber && <span className="ml-2 font-bold">SIAC: {entry.siacNumber}</span>}</div>) : "Nav pieteikumu"}</td>
       </tr>)}</tbody></table></div>
