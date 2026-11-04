@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { put } from "@vercel/blob/client";
-import { FileCheck2, Loader2, Upload } from "lucide-react";
+import { FileCheck2, Loader2, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SAFETY_MAX_BYTES, safetyExtension } from "@/lib/safety-document";
 
@@ -14,6 +14,18 @@ export function SafetyUpload({ schoolId, revision, document, onSaved }: {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  async function remove() {
+    if (!document || !confirm(`Dzēst augšupielādēto drošības lapu “${document.fileName}”? Pēc dzēšanas varēsiet iesniegt jaunu failu.`)) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/safety-documents", { method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: document.id, createdAt: document.createdAt }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Neizdevās izdzēst dokumentu.");
+      await onSaved();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Dzēšana neizdevās."); }
+    finally { setBusy(false); }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!file) return;
     const form = event.currentTarget;
@@ -44,6 +56,7 @@ export function SafetyUpload({ schoolId, revision, document, onSaved }: {
       {document?.status === "submitted" ? "Iesniegta elektroniski" : document ? "Pēc elektroniskās iesniegšanas ir mainīti skolas dati vai sastāvs. Atjaunoto lapu varat augšupielādēt vai iesniegt klātienē." : "Elektroniski nav iesniegta"}
     </p>
     {document && <a className="mt-2 block break-all text-sm font-bold text-primary underline" href={`/api/safety-documents/${document.id}`}>{document.fileName} · {new Date(document.createdAt).toLocaleString("lv-LV")}</a>}
+    {document && <Button type="button" variant="outline" className="mt-3 text-red-700" disabled={busy} onClick={remove}><Trash2 /> Dzēst augšupielādēto lapu</Button>}
     <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={submit}>
       <label className="form-label">{document ? "Aizstāt ar jaunu dokumentu" : "Izvēlēties parakstīto dokumentu"}
         <input className="form-control max-w-full" type="file" accept=".pdf,.edoc" required disabled={busy} onChange={event => setFile(event.target.files?.[0] ?? null)} />

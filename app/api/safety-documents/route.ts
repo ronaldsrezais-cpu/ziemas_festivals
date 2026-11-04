@@ -59,3 +59,24 @@ export async function PUT(request: Request) {
     return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch { return Response.json({ error: "Neizdevās iesniegt drošības lapu. Pārbaudiet failu un atjaunojiet lapu — iespējams, skolas dati vai komandas sastāvs ir mainīts." }, { status: 400 }); }
 }
+
+export async function DELETE(request: Request) {
+  if (!sameOrigin(request)) return Response.json({ error: "Nav atļauts." }, { status: 403 });
+  const session = await getSession("school");
+  if (!session) return Response.json({ error: "Pieslēdzieties skolas sadaļai." }, { status: 401 });
+  try {
+    const input = z.object({ id: z.number().int().positive(), createdAt: z.string().min(1).max(80) }).parse(await request.json());
+    const outcome = await withTransaction(async tx => {
+      const [school] = await tx.select().from(schools).where(eq(schools.id, session.subjectId)).for("update");
+      if (!school || school.status !== "approved") return { status: 403 as const };
+      const [file] = await tx.select().from(safetyDocuments).where(eq(safetyDocuments.schoolId, school.id));
+      if (!file || file.id !== input.id) return { status: 404 as const };
+      if (file.createdAt !== input.createdAt) return { status: 409 as const };
+      await tx.delete(safetyDocuments).where(eq(safetyDocuments.id, file.id));
+      return { status: 200 as const, objectKey: file.objectKey };
+    });
+    if (outcome.status !== 200) return Response.json({ error: outcome.status === 409 ? "Dokuments pa šo laiku ir aizstāts. Atjaunojiet lapu un pārbaudiet aktuālo failu." : "Dokuments nav pieejams dzēšanai." }, { status: outcome.status });
+    await del(outcome.objectKey!, { token: process.env.BLOB_READ_WRITE_TOKEN?.trim() }).catch(() => undefined);
+    return Response.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+  } catch { return Response.json({ error: "Neizdevās izdzēst drošības lapu. Atjaunojiet lapu un mēģiniet vēlreiz." }, { status: 400 }); }
+}

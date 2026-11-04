@@ -14,7 +14,7 @@ const hooks = registerHooks({ resolve(specifier, context, next) {
     return { url: new URL('../lib/' + specifier.split('/').pop() + '.ts', import.meta.url).href, shortCircuit: true };
   return next(specifier, context);
 } });
-const { POST, PUT } = await import('../app/api/safety-documents/route.ts');
+const { POST, PUT, DELETE } = await import('../app/api/safety-documents/route.ts');
 const { GET } = await import('../app/api/safety-documents/[id]/route.ts');
 hooks.deregister();
 
@@ -111,4 +111,25 @@ test('private safety document download is restricted to its school and admin', a
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.equal(await response.text(), 'test document');
   }
+});
+
+test('only the owning approved school may delete the current safety document', async () => {
+  await commit();
+  const file = { ...state.documents[0] };
+  const remove = (body = { id: file.id, createdAt: file.createdAt }, origin) => DELETE(request('DELETE', body, origin));
+  for (const session of [null, { role: 'judge', subjectId: 1 }, { role: 'school', subjectId: 2 }]) {
+    state.session = session;
+    assert.ok([401, 403, 404].includes((await remove()).status));
+    assert.equal(state.documents.length, 1);
+  }
+  state.session = { role: 'school', subjectId: 1 };
+  assert.equal((await remove(undefined, 'https://foreign.test')).status, 403);
+  assert.equal((await remove({ id: file.id, createdAt: 'older-version' })).status, 409);
+  assert.equal(state.documents.length, 1);
+  assert.equal((await remove()).status, 200);
+  assert.equal(state.documents.length, 0);
+  assert.ok(blobState.deleted.includes(file.objectKey));
+  assert.equal((await download(file.id)).status, 404);
+  blobState.objects.set(url(), { size: 100, contentType: 'application/pdf' });
+  assert.equal((await commit()).status, 200);
 });
