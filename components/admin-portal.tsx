@@ -55,6 +55,7 @@ type Sport = {
   location: string;
   mode: "individual" | "team";
   categories: Category[];
+  totalTeamLimit: number | null;
 };
 type AdminData = {
   schools: Array<{
@@ -425,6 +426,26 @@ function SchoolsTable({
   );
 }
 
+function SportTeamLimitForm({ sport, save }: { sport: Sport; save: (payload: Record<string, unknown>) => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = String(new FormData(event.currentTarget).get("limit") ?? "");
+    setBusy(true); setMessage("");
+    try {
+      await save({ action: "save-sport-team-limit", sportId: sport.id, limit: value ? Number(value) : null });
+      setMessage("Limits saglabāts.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Neizdevās saglabāt limitu."); }
+    finally { setBusy(false); }
+  }
+  return <form onSubmit={submit} className="flex flex-wrap items-end gap-3 border-b p-4">
+    <label className="form-label">Kopējais komandu limits<input className="form-control" name="limit" type="number" min={1} max={10000} defaultValue={sport.totalTeamLimit ?? ""} placeholder="Bez limita" disabled={busy} /></label>
+    <Button type="submit" variant="outline" disabled={busy}>Saglabāt limitu</Button>
+    <p role="status" className="w-full text-sm text-muted-foreground">{message || "Visām skolām kopā. Tukšs lauks nozīmē, ka limita nav."}</p>
+  </form>;
+}
+
 function SportsSection({
   sports,
   save,
@@ -465,6 +486,7 @@ function SportsSection({
               </DialogContent>
             </Dialog>
           </div>
+          {sport.mode === "team" && <SportTeamLimitForm key={`${sport.id}:${sport.totalTeamLimit}`} sport={sport} save={save} />}
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>

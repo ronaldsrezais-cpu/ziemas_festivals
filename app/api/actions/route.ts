@@ -1,3 +1,4 @@
+import { withTransaction } from "@/db/transaction";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { municipalityOptions } from "@/lib/municipalities";
@@ -24,7 +25,7 @@ import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
 import { renameSchool, schoolNameSchema, SchoolNameError } from "@/lib/school-profile";
 import { judgePasswordSchema } from "@/lib/judge-access";
-import { rosterReadiness } from "@/lib/roster-readiness";
+import { rosterReadiness, teamMinimumIssues, sportTeamLimit, sportTeamLimitKey } from "@/lib/roster-readiness";
 import { runtimeEnv } from "@/lib/runtime";
 import {
   accessCodeHash,
@@ -210,7 +211,8 @@ async function schoolView(schoolId: number) {
     requiredLeaders: requiredLeaders(participantRows.length),
     rosterEditable: editingRows[0]?.value !== "false" && school.status === "approved",
     readiness: rosterReadiness(participantRows.length, leaderRows.length, school.rosterSubmittedAt,
-      participantRows.filter(person => !entryRows.some(entry => entry.participantId === person.id)).length),
+      participantRows.filter(person => !entryRows.some(entry => entry.participantId === person.id)).length,
+      teamMinimumIssues(entryRows, new Set(participantRows.map(person => person.id)), sportRows)),
   };
 }
 
@@ -263,12 +265,13 @@ async function adminView() {
       providerId: emailOutbox.providerId,
       deliveryStatus: emailOutbox.deliveryStatus,
     }).from(emailOutbox).where(eq(emailOutbox.kind, "approval")).orderBy(emailOutbox.schoolId, desc(emailOutbox.id)),
-    db.select({ participantId: entries.participantId }).from(entries),
+    db.select({ participantId: entries.participantId, schoolId: entries.schoolId, categoryId: entries.categoryId, teamName: entries.teamName }).from(entries),
     db.select().from(safetyDocuments),
   ]);
   const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
   const schoolById = new Map(schoolRows.map((school) => [school.id, school]));
   const registeredIds = new Set(entryRows.map(entry => entry.participantId));
+  const sportsWithCategories = sportRows.map(sport => ({ ...sport, categories: categoryRows.filter(category => category.sportId === sport.id) }));
   const adminSchools = await Promise.all(schoolRows.map(async (school) => {
     const { accessCodeHash: currentHash, ...details } = school;
     return {
@@ -287,6 +290,7 @@ async function adminView() {
         leaderRows.filter(leader => leader.schoolId === school.id).length,
         school.rosterSubmittedAt,
         participantRows.filter(person => person.schoolId === school.id && !registeredIds.has(person.id)).length,
+        teamMinimumIssues(entryRows.filter(entry => entry.schoolId === school.id), new Set(participantRows.filter(person => person.schoolId === school.id).map(person => person.id)), sportsWithCategories),
       ),
     };
   }));
@@ -306,11 +310,8 @@ async function adminView() {
         schoolStatus: school?.status ?? "",
       };
     }).sort((a, b) => a.schoolName.localeCompare(b.schoolName, "lv") || a.fullName.localeCompare(b.fullName, "lv")),
-    sports: sportRows.map((sport) => ({
-      ...sport,
-      categories: categoryRows.filter(
-        (category) => category.sportId === sport.id,
-      ),
+    sports: sportsWithCategories.map(sport => ({
+      ...sport, totalTeamLimit: sportTeamLimit(sport.code, settingRows.find(row => row.key === sportTeamLimitKey(sport.id))?.value),
     })),
     judges: judgeRows,
     outbox: codeMessages.map(mail => ({
@@ -623,7 +624,8 @@ export async function POST(request: Request) {
       action === "add-category" ||
       action === "update-category" ||
       action === "add-judge" ||
-      action === "save-setting"
+      action === "save-setting" ||
+      action === "save-sport-team-limit"
     ) {
       const session = await getSession("admin");
       if (!session)
@@ -645,6 +647,16 @@ export async function POST(request: Request) {
           })
           .returning({ id: judges.id, fullName: judges.fullName });
         return Response.json({ judge });
+      }
+      if (action === "save-sport-team-limit") {
+        const { sportId, limit } = z.object({ sportId: z.number().int().positive(), limit: z.number().int().min(1).max(10000).nullable() }).parse(payload);
+        await withTransaction(async tx => {
+          const [sport] = await tx.select().from(sports).where(eq(sports.id, sportId)).for("update");
+          if (sport?.mode !== "team") throw new Error("Komandu limitu var norādīt tikai komandu sporta veidam.");
+          const key = sportTeamLimitKey(sportId), value = limit === null ? "" : String(limit);
+          await tx.insert(settings).values({ key, value }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date().toISOString() } });
+        });
+        return Response.json({ ok: true });
       }
       if (action === "save-setting") {
         const data = z

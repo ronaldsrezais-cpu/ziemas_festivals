@@ -41,3 +41,16 @@ test('completion requires sufficient leaders and a roster change clears completi
   assert.equal(state.schools[0].rosterSubmittedAt, null);
   await assert.rejects(mutateSchoolRoster(1, 'submit-roster', {}), /vadītāju/);
 });
+
+test('completion is blocked for an undersized team until that same team reaches its minimum', async () => {
+  state.leaders.push({ id: 2, schoolId: 1 });
+  state.sports = [{ id: 1, mode: 'team', name: 'Disku golfs' }];
+  state.categories = [{ id: 2, sportId: 1, name: 'Komandu ieskaite', teamMin: 3, active: true }];
+  state.entries[0] = { ...state.entries[0], categoryId: 2, teamName: '1. komanda' };
+  state.entries[1] = { ...state.entries[1], categoryId: 2, teamName: '1. komanda' };
+  await assert.rejects(mutateSchoolRoster(1, 'submit-roster', {}), /Disku golfs.*pieteikti 2, nepieciešami vismaz 3/);
+  assert.equal(state.schools[0].rosterSubmittedAt, null);
+  state.entries[2] = { ...state.entries[2], categoryId: 2, teamName: '1. komanda' };
+  await mutateSchoolRoster(1, 'submit-roster', {});
+  assert.ok(state.schools[0].rosterSubmittedAt);
+});

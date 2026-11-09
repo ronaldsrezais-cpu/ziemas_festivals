@@ -1,8 +1,8 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withTransaction, type Transaction } from "@/db/transaction";
 import { categories, entries, leaders, participants, results, schools, settings, sports } from "@/db/schema";
-import { rosterReadiness } from "./roster-readiness";
+import { rosterReadiness, teamMinimumIssues, sportTeamLimit, sportTeamLimitKey } from "./roster-readiness";
 import { formatPersonName } from "./person-name";
 import { numberedTeam } from "./team-registration";
 
@@ -57,7 +57,33 @@ async function validateRegistrations(tx: Transaction, input: ParticipantInput, s
   }
 }
 
+
+async function countSportTeams(tx: Transaction, sportId: number) {
+  const [row] = await tx.select({ total: sql<number>`count(distinct (${entries.schoolId}, ${entries.categoryId}, coalesce(nullif(${entries.teamName}, ''), '1. komanda')))::int` })
+    .from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
+    .innerJoin(participants, eq(entries.participantId, participants.id))
+    .where(and(eq(categories.sportId, sportId), eq(categories.active, true), eq(participants.active, true)));
+  return row.total;
+}
+
+async function lockSportLimits(tx: Transaction, registrations: ParticipantInput["registrations"]) {
+  const selected = await tx.select().from(categories).where(inArray(categories.id, registrations.map(row => row.categoryId)));
+  const sportIds = [...new Set(selected.map(category => category.sportId))];
+  if (!sportIds.length) return [];
+  // Serialize registrations for each sport before reading capacity.
+  const locked = await tx.select().from(sports)
+    .where(and(inArray(sports.id, sportIds), eq(sports.mode, "team"))).orderBy(asc(sports.id)).for("update");
+  const limits = [];
+  for (const sport of locked) {
+    const [setting] = await tx.select().from(settings).where(eq(settings.key, sportTeamLimitKey(sport.id)));
+    const limit = sportTeamLimit(sport.code, setting?.value);
+    if (limit !== null) limits.push({ sport, limit, before: await countSportTeams(tx, sport.id) });
+  }
+  return limits;
+}
+
 async function saveParticipant(tx: Transaction, schoolId: number, data: ParticipantInput) {
+  const limits = await lockSportLimits(tx, data.registrations);
   let participantId = data.id;
   if (participantId) {
     const [person] = await tx.select().from(participants).where(and(
@@ -99,6 +125,10 @@ async function saveParticipant(tx: Transaction, schoolId: number, data: Particip
       await tx.insert(entries).values({ schoolId, participantId, categoryId: registration.categoryId, teamName, siacNumber });
     }
   }
+  for (const { sport, limit, before } of limits) {
+    const after = await countSportTeams(tx, sport.id);
+    if (after > limit && after > before) throw new Error(`${sport.name}: sasniegts kopējais limits — ${limit} komandas. Jaunu komandu pievienot nevar.`);
+  }
   return { ok: true, participantId };
 }
 
@@ -130,10 +160,17 @@ export async function mutateSchoolRoster(schoolId: number, action: string, paylo
       const people = await tx.select({ id: participants.id }).from(participants)
         .where(and(eq(participants.schoolId, schoolId), eq(participants.active, true)));
       const teamLeaders = await tx.select({ id: leaders.id }).from(leaders).where(eq(leaders.schoolId, schoolId));
-      const registrations = await tx.select({ participantId: entries.participantId }).from(entries).where(eq(entries.schoolId, schoolId));
+      const registrations = await tx.select().from(entries).where(eq(entries.schoolId, schoolId));
+      const categoryIds = [...new Set(registrations.map(entry => entry.categoryId))];
+      const usedCategories = categoryIds.length ? await tx.select().from(categories).where(inArray(categories.id, categoryIds)) : [];
+      const sportIds = [...new Set(usedCategories.map(category => category.sportId))];
+      const usedSports = sportIds.length ? await tx.select().from(sports).where(inArray(sports.id, sportIds)) : [];
+      const teamIssues = teamMinimumIssues(registrations, new Set(people.map(person => person.id)), usedSports.map(sport => ({
+        ...sport, categories: usedCategories.filter(category => category.sportId === sport.id),
+      })));
       const registered = new Set(registrations.map(entry => entry.participantId));
       const readiness = rosterReadiness(people.length, teamLeaders.length, school.rosterSubmittedAt,
-        people.filter(person => !registered.has(person.id)).length);
+        people.filter(person => !registered.has(person.id)).length, teamIssues);
       if (!readiness.canSubmit) throw new Error(readiness.issues.join(" "));
       const submittedAt = school.rosterSubmittedAt ?? new Date().toISOString();
       await tx.update(schools).set({ rosterSubmittedAt: submittedAt }).where(eq(schools.id, schoolId));
