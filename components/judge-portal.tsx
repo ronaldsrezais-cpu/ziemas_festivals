@@ -15,6 +15,7 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
+import { combineTeamImportRows, resultTeamKey, resultTeamName } from "@/lib/team-results";
 import { previewResultMatches } from "@/lib/result-import";
 import { ParticipantList } from "@/components/participant-list";
 import { PageHeading } from "@/components/site-shell";
@@ -196,10 +197,10 @@ export function JudgePortal() {
         <TabsContent value="start-protocols"><JudgeStartProtocols sportId={data.judge.sportId} judgeId={data.judge.id} /></TabsContent>
         <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
         <TabsContent value="manual">
-          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">Katram dalībniekam ievadiet vietu un saglabājiet. Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
+          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">{data.judge.sportMode === "team" ? "Ievadiet vietu vienreiz katrai komandai." : "Katram dalībniekam ievadiet vietu un saglabājiet."} Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
           <ManualResults
             data={data}
-            remove={(result, entry) => remove("result", result.id, `${entry.firstName} ${entry.lastName} rezultātu`)}
+            remove={(result, entry, team) => remove("result", result.id, team ? `${entry.schoolName} · ${resultTeamName(entry.teamName)} rezultātu` : `${entry.firstName} ${entry.lastName} rezultātu`)}
             save={async (payload) => {
               await action({ action: "save-result", ...payload });
               await load(true);
@@ -340,7 +341,7 @@ function ManualResults({
   remove,
 }: {
   data: JudgeData;
-  remove: (result: Result, entry: Entry) => Promise<void>;
+  remove: (result: Result, entry: Entry, team?: Entry[]) => Promise<void>;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [discipline, setDiscipline] = useState("");
@@ -364,18 +365,21 @@ function ManualResults({
     if (data.judge.sportMode !== "team") return <tbody>{rows.map(renderRow)}</tbody>;
     const teams = new Map<string, { school: string; name: string; members: Entry[] }>();
     for (const entry of rows) {
-      const name = entry.teamName?.trim() || "1. komanda";
-      const key = JSON.stringify([entry.schoolId, name]);
+      const name = resultTeamName(entry.teamName);
+      const key = resultTeamKey(entry);
       const team = teams.get(key) ?? { school: entry.schoolName, name, members: [] };
       team.members.push(entry);
       teams.set(key, team);
     }
-    return [...teams].map(([key, team]) => <tbody key={key}>
-      <tr><th scope="rowgroup" colSpan={5} className="border-t bg-[#e9ecff] text-left">
-        {team.school} · {team.name} <span className="ml-2 text-xs font-normal text-muted-foreground">Dalībnieku skaits: {team.members.length}</span>
-      </th></tr>
-      {team.members.map(renderRow)}
-    </tbody>);
+    return [...teams].map(([key, team]) => {
+      const saved = team.members.flatMap(member => {
+        const result = resultsByEntry.get(member.entryId);
+        return result ? [result] : [];
+      });
+      const conflict = saved.some(result => result.placement !== saved[0].placement || result.status !== saved[0].status);
+      return <tbody key={key}><ManualRow key={JSON.stringify(saved.map(result => [result.id, result.updatedAt]))}
+        entry={team.members[0]} result={saved[0]} team={team.members} conflict={conflict} save={save} remove={remove} /></tbody>;
+    });
   }
   return (
     <div className="grid gap-6">
@@ -398,7 +402,7 @@ function ManualResults({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Dalībnieks</th>
+                  <th>{data.judge.sportMode === "team" ? "Komanda" : "Dalībnieks"}</th>
                   <th>Skola</th>
                   <th>Vieta</th>
                   <th>Statuss</th>
@@ -422,23 +426,30 @@ function ManualResults({
 function ManualRow({
   entry,
   result,
+  team,
+  conflict = false,
   save,
   remove,
 }: {
   entry: Entry;
   result?: Result;
-  remove: (result: Result, entry: Entry) => Promise<void>;
+  team?: Entry[];
+  conflict?: boolean;
+  remove: (result: Result, entry: Entry, team?: Entry[]) => Promise<void>;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [placement, setPlacement] = useState(
-    result?.placement ? String(result.placement) : "",
+    !conflict && result?.placement ? String(result.placement) : "",
   );
   const [status, setStatus] = useState<Result["status"]>(
-    result?.status ?? "ranked",
+    conflict ? "ranked" : result?.status ?? "ranked",
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit() {
+    if (status === "ranked" && (!Number.isSafeInteger(Number(placement)) || Number(placement) < 1)) {
+      setError("Ievadiet iegūto vietu."); return;
+    }
     setBusy(true); setError("");
     try { await save({
       categoryId: entry.categoryId,
@@ -451,7 +462,10 @@ function ManualRow({
   }
   return (
     <tr>
-      <td><strong>{entry.firstName} {entry.lastName}</strong></td>
+      <td>{team ? <><strong>{resultTeamName(entry.teamName)}</strong>
+        <ul className="mt-1 text-xs text-muted-foreground">{team.map(member => <li key={member.entryId}>{member.firstName} {member.lastName}</li>)}</ul>
+        {conflict && <p className="mt-2 text-xs font-bold text-red-800">Iepriekš ievadītas atšķirīgas vietas vai statusi. Saglabājiet vienu rezultātu komandai.</p>}
+      </> : <strong>{entry.firstName} {entry.lastName}</strong>}</td>
       <td>{entry.schoolName}<p className="mt-1 text-xs text-muted-foreground">{result ? result.published ? "Rezultāts publicēts" : "Rezultāts saglabāts" : "Rezultāts nav ievadīts"}</p></td>
       <td>
         <input
@@ -485,7 +499,7 @@ function ManualRow({
         >
           {busy ? <Loader2 className="animate-spin" /> : <Save />}
         </Button>
-        {result && <Button size="icon-sm" variant="ghost" className="ml-1 text-red-700" disabled={busy} aria-label={`Dzēst rezultātu: ${entry.firstName} ${entry.lastName}`} onClick={() => remove(result, entry)}><Trash2 /></Button>}
+        {result && <Button size="icon-sm" variant="ghost" className="ml-1 text-red-700" disabled={busy} aria-label={`Dzēst rezultātu: ${entry.firstName} ${entry.lastName}`} onClick={() => remove(result, entry, team)}><Trash2 /></Button>}
         {error && <p role="alert" className="mt-2 max-w-48 text-sm text-red-800">{error}</p>}
       </td>
     </tr>
@@ -586,6 +600,8 @@ function ImportResults({
     setBusy(true); onBusyChange(true);
     setError("");
     try {
+      const selected = preview.filter(row => row.matched && (row.placement || row.status !== "ranked"));
+      const rowsToSave = data.judge.sportMode === "team" ? combineTeamImportRows(selected) : selected;
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const pathname = `results/${data.judge.sportId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const tokenResponse = await fetch("/api/uploads", {
@@ -618,9 +634,7 @@ function ImportResults({
       });
       const uploadBody = await uploadResponse.json();
       if (!uploadResponse.ok) throw new Error(uploadBody.error);
-      for (const row of preview.filter(
-        (item) => item.matched && (item.placement || item.status !== "ranked"),
-      )) {
+      for (const row of rowsToSave) {
         await save({
           categoryId: row.categoryId,
           entryId: row.entryId,

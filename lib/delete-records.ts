@@ -1,7 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { del } from "@vercel/blob";
 import { withTransaction } from "@/db/transaction";
-import { categories, judges, results, safetyDocuments, schools, sessions, uploads } from "@/db/schema";
+import { categories, entries, judges, results, safetyDocuments, schools, sessions, sports, uploads } from "@/db/schema";
+
+import { resultTeamName } from "./team-results";
 
 export async function deleteJudgeRecord(judgeId: number, kind: "result" | "upload", id: number) {
   return withTransaction(async tx => {
@@ -10,8 +12,22 @@ export async function deleteJudgeRecord(judgeId: number, kind: "result" | "uploa
     if (kind === "result") {
       const rows = await tx.select({ id: categories.id }).from(categories).where(eq(categories.sportId, judge.sportId));
       if (!rows.length) throw new Error("Rezultāts nav atrasts.");
-      const removed = await tx.delete(results).where(and(eq(results.id, id), inArray(results.categoryId, rows.map(row => row.id)))).returning({ id: results.id });
-      if (!removed.length) throw new Error("Rezultāts nav pieejams šim tiesnesim.");
+      const [result] = await tx.select().from(results).where(and(eq(results.id, id), inArray(results.categoryId, rows.map(row => row.id))));
+      if (!result) throw new Error("Rezultāts nav pieejams šim tiesnesim.");
+      const [sport] = await tx.select().from(sports).where(eq(sports.id, judge.sportId));
+      if (sport?.mode === "team") {
+        const [entry] = await tx.select().from(entries).where(and(eq(entries.id, result.entryId), eq(entries.categoryId, result.categoryId)));
+        if (!entry) throw new Error("Komanda nav atrasta.");
+        await tx.select({ id: schools.id }).from(schools).where(eq(schools.id, entry.schoolId)).for("update");
+        const members = await tx.select().from(entries)
+          .where(and(eq(entries.schoolId, entry.schoolId), eq(entries.categoryId, result.categoryId))).for("update");
+        const anchor = members.find(member => member.id === entry.id);
+        if (!anchor) throw new Error("Komandas sastāvs ir mainījies. Atjaunojiet lapu.");
+        const memberIds = members.filter(member => resultTeamName(member.teamName) === resultTeamName(anchor.teamName)).map(member => member.id);
+        await tx.delete(results).where(and(eq(results.categoryId, result.categoryId), inArray(results.entryId, memberIds)));
+      } else {
+        await tx.delete(results).where(eq(results.id, result.id));
+      }
     } else {
       const [file] = await tx.select().from(uploads).where(and(eq(uploads.id, id), eq(uploads.sportId, judge.sportId))).for("update");
       if (!file) throw new Error("Fails nav pieejams šim tiesnesim.");

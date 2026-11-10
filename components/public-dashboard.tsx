@@ -1,5 +1,6 @@
 "use client";
 
+import { resultTeamName, uniqueTeamResults } from "@/lib/team-results";
 import { sharedMedalPlaces } from "@/lib/medal-ranking";
 
 import { useEffect, useMemo, useState } from "react";
@@ -121,7 +122,9 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
     [data, school, municipality, sport],
   );
   const medalTable = useMemo(() => {
-    const counted = new Set<string>();
+    const teamSportIds = new Set(data?.sports.filter(sport => sport.mode === "team").map(sport => sport.id));
+    const teamRows = filteredResults.filter(row => teamSportIds.has(row.sportId));
+    const medalResults = [...filteredResults.filter(row => !teamSportIds.has(row.sportId)), ...uniqueTeamResults(teamRows)];
     const rows = new Map<
       number,
       {
@@ -132,11 +135,8 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
         bronze: number;
       }
     >();
-    for (const result of filteredResults) {
-      if (!result.placement || result.placement > 3) continue;
-      const key = `${result.schoolId}:${result.categoryId}:${result.placement}:${result.teamName ?? result.participantId}`;
-      if (counted.has(key)) continue;
-      counted.add(key);
+    for (const result of medalResults) {
+      if (result.status !== "ranked" || !result.placement || result.placement > 3) continue;
       const current = rows.get(result.schoolId) ?? {
         school: result.schoolName,
         municipality: result.municipality,
@@ -156,7 +156,7 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
         b.bronze - a.bronze ||
         a.school.localeCompare(b.school, "lv"),
     );
-  }, [filteredResults]);
+  }, [data?.sports, filteredResults]);
 
   return (
     <main>
@@ -467,15 +467,7 @@ function ResultTable({
   rows: PublicData["results"];
   team: boolean;
 }) {
-  const seen = new Set<string>();
-  const display = rows.filter((row) => {
-    const key = team
-      ? `${row.schoolId}:${row.teamName}:${row.placement}`
-      : String(row.id);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const display = team ? uniqueTeamResults(rows) : rows;
   return (
     <div className="border-b last:border-0">
       <h3 className="bg-[#f0f1ff] px-5 py-3 font-black text-[#2910bf]">
@@ -500,7 +492,7 @@ function ResultTable({
                 </td>
                 <td className="font-bold">
                   {team
-                    ? row.teamName
+                    ? resultTeamName(row.teamName)
                     : `${row.participantName} ${row.participantLastName}`}
                 </td>
                 <td>{row.schoolName}</td>

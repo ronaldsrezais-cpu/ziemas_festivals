@@ -7,6 +7,7 @@ import { blobState, resetBlobs } from './safety-test-blob.mjs';
 const hooks = registerHooks({ resolve(specifier, context, next) {
   if (['drizzle-orm', '@/db/transaction', '@/db/schema'].includes(specifier))
     return { url: new URL('./email-test-db.mjs', import.meta.url).href, shortCircuit: true };
+  if (specifier === './team-results') return next('./team-results.ts', context);
   if (specifier === '@vercel/blob') return { url: new URL('./safety-test-blob.mjs', import.meta.url).href, shortCircuit: true };
   return next(specifier, context);
 } });
@@ -74,4 +75,17 @@ test('school deletion revokes only that school sessions and deletes only its pri
   assert.deepEqual(state.schools.map(row => row.id), [2]);
   assert.deepEqual(state.sessions, [{ role: 'school', subjectId: 2 }, { role: 'judge', subjectId: 1 }]);
   assert.deepEqual(blobState.deleted, ['test-safety-1']);
+});
+
+test('deleting a team result removes all its members and leaves other teams alone', async () => {
+  state.sports = [{ id: 1, mode: 'team' }];
+  state.entries = [
+    { id: 1, schoolId: 1, categoryId: 1, teamName: null },
+    { id: 3, schoolId: 1, categoryId: 1, teamName: '1. komanda' },
+    { id: 4, schoolId: 1, categoryId: 1, teamName: '2. komanda' },
+    { id: 5, schoolId: 2, categoryId: 1, teamName: '1. komanda' },
+  ];
+  state.results.push(...[3, 4, 5].map(id => ({ id, categoryId: 1, entryId: id })));
+  await deleteJudgeRecord(1, 'result', 1);
+  assert.deepEqual(state.results.map(result => result.id), [2, 4, 5]);
 });

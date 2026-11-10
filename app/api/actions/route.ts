@@ -1,3 +1,4 @@
+import { resultTeamName } from "@/lib/team-results";
 import { withTransaction } from "@/db/transaction";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
@@ -764,50 +765,34 @@ export async function POST(request: Request) {
           sourceUploadId: z.number().int().positive().nullable().optional(),
         })
         .parse(payload);
-      const [entry] = await db
-        .select({ id: entries.id })
-        .from(entries)
-        .innerJoin(categories, eq(entries.categoryId, categories.id))
-        .where(
-          and(
-            eq(entries.id, data.entryId),
-            eq(entries.categoryId, data.categoryId),
-            eq(categories.sportId, judge.sportId),
-          ),
-        )
-        .limit(1);
-      if (!entry)
-        return Response.json(
-          { error: "Dalībnieks nav pieejams šim sporta veidam." },
-          { status: 403 },
-        );
-      if (data.sourceUploadId) {
-        const [source] = await db.select({ id: uploads.id }).from(uploads).where(and(eq(uploads.id, data.sourceUploadId), eq(uploads.sportId, judge.sportId))).limit(1);
-        if (!source) return Response.json({ error: "Avota fails nepieder šim sporta veidam." }, { status: 403 });
-      }
-      await db
-        .insert(results)
-        .values({
-          ...data,
+      await withTransaction(async tx => {
+        const [entry] = await tx.select({ id: entries.id, schoolId: entries.schoolId, mode: sports.mode })
+          .from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
+          .innerJoin(sports, eq(categories.sportId, sports.id))
+          .where(and(eq(entries.id, data.entryId), eq(entries.categoryId, data.categoryId), eq(categories.sportId, judge.sportId))).limit(1);
+        if (!entry) throw new Error("Dalībnieks nav pieejams šim sporta veidam.");
+        if (data.sourceUploadId) {
+          const [source] = await tx.select({ id: uploads.id }).from(uploads)
+            .where(and(eq(uploads.id, data.sourceUploadId), eq(uploads.sportId, judge.sportId))).limit(1);
+          if (!source) throw new Error("Avota fails nepieder šim sporta veidam.");
+        }
+        let entryIds = [entry.id];
+        if (entry.mode === "team") {
+          await tx.select({ id: schools.id }).from(schools).where(eq(schools.id, entry.schoolId)).for("update");
+          const members = await tx.select().from(entries)
+            .where(and(eq(entries.schoolId, entry.schoolId), eq(entries.categoryId, data.categoryId))).for("update");
+          const anchor = members.find(member => member.id === entry.id);
+          if (!anchor) throw new Error("Komandas sastāvs ir mainījies. Atjaunojiet lapu.");
+          entryIds = members.filter(member => resultTeamName(member.teamName) === resultTeamName(anchor.teamName)).map(member => member.id);
+        }
+        const fields = {
           placement: data.status === "ranked" ? (data.placement ?? null) : null,
-          sourceUploadId: data.sourceUploadId ?? null,
-          judgeId: judge.id,
-          published: false,
-          updatedAt: new Date().toISOString(),
-        })
-        .onConflictDoUpdate({
-          target: [results.entryId, results.categoryId],
-          set: {
-            placement:
-              data.status === "ranked" ? (data.placement ?? null) : null,
-            status: data.status,
-            score: data.score,
-            sourceUploadId: data.sourceUploadId ?? null,
-            judgeId: judge.id,
-            published: false,
-            updatedAt: new Date().toISOString(),
-          },
-        });
+          status: data.status, score: data.score ?? null, sourceUploadId: data.sourceUploadId ?? null,
+          judgeId: judge.id, published: false, updatedAt: new Date().toISOString(),
+        };
+        await tx.insert(results).values(entryIds.map(entryId => ({ ...fields, entryId, categoryId: data.categoryId })))
+          .onConflictDoUpdate({ target: [results.entryId, results.categoryId], set: fields });
+      });
       return Response.json({ ok: true });
     }
 
