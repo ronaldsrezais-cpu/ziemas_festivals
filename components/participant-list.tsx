@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { filterParticipants, genderLabel, schoolStatusLabel, type ListedParticipant } from "@/lib/participant-list";
+import { filterParticipants, groupTeamParticipants, genderLabel, schoolStatusLabel, type ListedParticipant } from "@/lib/participant-list";
 
 export function ParticipantList() {
   const [people, setPeople] = useState<ListedParticipant[]>([]);
@@ -30,6 +30,7 @@ export function ParticipantList() {
   const categories = [...new Map(registrations.filter((entry) => !sport || String(entry.sportId) === sport)
     .map((entry) => [entry.categoryId, `${entry.sportName}: ${entry.categoryName}`])).entries()];
   const filtered = filterParticipants(people, { school, sport, category, search });
+  const { teams, individuals } = groupTeamParticipants(filtered);
   async function exportExcel() {
     setExporting(true); setError("");
     try {
@@ -62,12 +63,27 @@ export function ParticipantList() {
       <label className="form-label">Kategorija<select className="form-control" value={category} onChange={(event) => setCategory(event.target.value)}><option value="">Visas kategorijas</option>{categories.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
     </div>
     {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-red-800">{error}</p>}
-    <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Dalībnieks</th><th>Dzimšanas gads</th><th>Dzimums</th><th>Skola / novads</th><th>Sporta veidi un kategorijas</th></tr></thead>
-      <tbody>{filtered.map((person) => <tr key={person.id}>
+    {teams.length > 0 && <section aria-label="Skolu komandas" className="mb-5">
+      <h3 className="mb-3 text-lg font-black">Skolu komandas ({teams.length})</h3>
+      <div className="grid gap-3 lg:grid-cols-2">{teams.map(team => <article key={team.key} className="min-w-0 overflow-hidden rounded-2xl border bg-white">
+        <header className="border-b bg-[#e9ecff] px-4 py-3">
+          <p className="text-xs font-semibold text-muted-foreground">{team.registration.sportName} · {team.registration.categoryName}</p>
+          <h4 className="break-words font-black">{team.schoolName} · {team.teamName}</h4>
+          <p className="text-xs text-muted-foreground">{team.municipality} · Atlasē: {team.members.length}</p>
+        </header>
+        <ul className="divide-y px-4">{team.members.map(person => <li key={person.id} className="py-2 text-sm">
+          <span className="font-semibold">{person.firstName} {person.lastName}</span>
+          <span className="ml-2 text-muted-foreground">{person.birthYear} · {genderLabel(person.gender)}</span>
+          {Boolean(person.otherSports?.length) && <p className="mt-1 text-xs text-amber-900">Pieteikts arī: {person.otherSports!.join(", ")}</p>}
+        </li>)}</ul>
+      </article>)}</div>
+    </section>}
+    {individuals.length > 0 && <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Dalībnieks</th><th>Dzimšanas gads</th><th>Dzimums</th><th>Skola / novads</th><th>Sporta veidi un kategorijas</th></tr></thead>
+      <tbody>{individuals.map((person) => <tr key={person.id}>
         <td className="font-bold">{person.firstName} {person.lastName}{Boolean(person.otherSports?.length) && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-medium text-amber-900">Pieteikts arī: {person.otherSports!.join(", ")}</p>}</td><td>{person.birthYear}</td><td>{genderLabel(person.gender)}</td>
         <td>{person.schoolName}<div className="text-xs text-muted-foreground">{person.municipality} · {schoolStatusLabel(person.schoolStatus)}</div></td>
         <td>{person.registrations.length ? person.registrations.map((entry) => <div key={entry.id} className="mb-1">{entry.sportName} — {entry.discipline}, {entry.categoryName}{entry.teamName ? ` (${entry.teamName})` : ""}{entry.siacNumber && <span className="ml-2 font-bold">SIAC: {entry.siacNumber}</span>}</div>) : "Nav pieteikumu"}</td>
-      </tr>)}</tbody></table></div>
+      </tr>)}</tbody></table></div>}
     {!filtered.length && <p className="p-6 text-center text-muted-foreground">Nav dalībnieku, ko parādīt ar izvēlētajiem filtriem.</p>}
   </section>;
 }

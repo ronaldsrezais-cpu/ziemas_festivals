@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   // Scope is derived exclusively from the authenticated judge, never from URL parameters.
   const registrations = await db.select({
     id: entries.id, participantId: entries.participantId,
-    sportId: sports.id, sportName: sports.name, categoryId: categories.id,
+    sportId: sports.id, sportName: sports.name, sportMode: sports.mode, categoryId: categories.id,
     categoryName: categories.name, discipline: categories.discipline, teamName: entries.teamName, siacNumber: entries.siacNumber,
   }).from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
     .innerJoin(sports, eq(categories.sportId, sports.id))

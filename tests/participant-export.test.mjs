@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import ExcelJS from 'exceljs';
-import { filterParticipants } from '../lib/participant-list.ts';
+import { filterParticipants, groupTeamParticipants } from '../lib/participant-list.ts';
 registerHooks({ resolve(specifier, context, next) {
   return next(specifier === './participant-list' ? './participant-list.ts' : specifier, context);
 } });
@@ -40,4 +40,18 @@ test('empty export retains headers and no invented participants', () => {
   const wb=participantWorkbook([]);
   assert.equal(wb.getWorksheet('Dalībnieki').rowCount,1);
   assert.equal(wb.getWorksheet('Pieteikumi').rowCount,1);
+});
+
+test('team view keeps schools and categories separate and retains individual entries', () => {
+  const team = { id: 10, sportId: 1, sportName: 'Disku golfs', sportMode: 'team', categoryId: 1, categoryName: 'Komandas', teamName: '1. komanda' };
+  const individual = { id: 11, sportId: 2, sportName: 'Biatlons', sportMode: 'individual', categoryId: 2, categoryName: '1. grupa', teamName: null };
+  const make = (id, schoolId, registrations) => ({ id, schoolId, schoolName: 'Skola ' + schoolId, registrations });
+  const grouped = groupTeamParticipants([
+    make(1, 1, [team, individual]), make(2, 1, [{ ...team, teamName: null }]),
+    make(3, 2, [team]), make(4, 1, [{ ...team, categoryId: 3 }]),
+    make(5, 1, [{ ...team, teamName: '2. komanda' }]),
+  ]);
+  assert.equal(grouped.teams.length, 4);
+  assert.deepEqual(grouped.teams.find(group => group.members.length === 2).members.map(person => person.id), [1, 2]);
+  assert.deepEqual(grouped.individuals.map(person => person.registrations), [[individual]]);
 });
