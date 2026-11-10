@@ -3,7 +3,7 @@
 import { JudgeContacts } from "@/components/judge-contacts";
 import { JudgeStartProtocols } from "@/components/start-protocols";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { put } from "@vercel/blob/client";
 import {
   CheckCircle2,
@@ -82,19 +82,27 @@ export function JudgePortal() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [importBusy, setImportBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [resultNotice, setResultNotice] = useState("");
   const [resultMode, setResultMode] = useState("manual");
   const load = useCallback(async (refresh = false) => {
     if (!refresh) setLoading(true);
-    const response = await fetch("/api/actions?view=judge");
-    if (response.status === 401) {
-      setData(null);
+    try {
+      const response = await fetch("/api/actions?view=judge", { cache: "no-store" });
+      if (response.status === 401) {
+        setData(null);
+        return false;
+      }
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Neizdevās ielādēt rezultātus.");
+      setData(body);
+      return true;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Neizdevās ielādēt rezultātus.");
+      return false;
+    } finally {
       setLoading(false);
-      return;
     }
-    const body = await response.json();
-    if (!response.ok) setError(body.error);
-    else setData(body);
-    setLoading(false);
   }, []);
   useEffect(() => {
     load();
@@ -122,11 +130,19 @@ export function JudgePortal() {
     setData(null);
   }
   async function publish() {
-    if (importBusy) return;
-    if (!confirm("Publicēt visus saglabātos šī sporta veida rezultātus?"))
-      return;
-    try { await action({ action: "publish-sport" }); setNotice("Rezultāti publicēti publiskajā lapā."); await load(true); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Neizdevās publicēt."); }
+    if (importBusy || publishing) return;
+    if (!confirm("Publicēt visus saglabātos šī sporta veida rezultātus?")) return;
+    setPublishing(true);
+    setResultNotice("");
+    try {
+      await action({ action: "publish-sport" });
+      if (await load(true)) setResultMode("manual");
+      setResultNotice("Rezultāti publicēti publiskajā lapā.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Neizdevās publicēt.");
+    } finally {
+      setPublishing(false);
+    }
   }
   async function remove(kind: "result" | "upload", id: number, label: string) {
     const explanation = kind === "upload" ? "Ievadītie rezultāti saglabāsies; saite uz failu tiks noņemta." : "Rezultāts tiks noņemts arī no publiskās lapas un kopvērtējuma. Dalībnieka pieteikums saglabāsies.";
@@ -186,28 +202,26 @@ export function JudgePortal() {
         <TabsContent value="start-protocols"><JudgeStartProtocols sportId={data.judge.sportId} judgeId={data.judge.id} /></TabsContent>
         <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību rezultātus ievadiet vai importējiet sadaļā “Rezultāti”.</p></div><ParticipantList /></TabsContent>
         <TabsContent value="results">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#e9ecff] p-5">
-            <div>
-              <h2 className="text-xl font-black">Sacensību rezultāti</h2>
-              <p className="mt-2 text-sm">Izvēlieties ievades veidu. Pārbaudiet un saglabājiet rezultātus pirms publicēšanas.</p>
-            </div>
-            <Button
-              onClick={publish}
-              disabled={importBusy}
-              className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]"
-            >
-              <CheckCircle2 /> {importBusy ? "Notiek imports…" : "Publicēt rezultātus"}
-            </Button>
-          </div>
           <Tabs value={resultMode} onValueChange={setResultMode}>
-            <TabsList aria-label="Rezultātu ievades veids" className="mb-4 h-auto max-w-full flex-wrap gap-1 bg-[#e9ecff] p-1">
-              <TabsTrigger value="manual" disabled={importBusy} className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
-                Ievadīt manuāli
-              </TabsTrigger>
-              <TabsTrigger value="import" className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
-                Importēt no faila
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#c7cfff] bg-[#e9ecff] p-3">
+              <TabsList aria-label="Rezultātu ievades veids" className="h-auto max-w-full flex-wrap gap-1 bg-transparent p-0">
+                <TabsTrigger value="manual" disabled={importBusy} className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
+                  Ievadīt manuāli
+                </TabsTrigger>
+                <TabsTrigger value="import" disabled={publishing} className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
+                  Importēt no faila
+                </TabsTrigger>
+              </TabsList>
+              <Button
+                onClick={publish}
+                disabled={importBusy || publishing}
+                className="min-h-11 w-full bg-[#d2d61d] font-bold text-[#0c0942] hover:bg-[#e6e956] sm:w-auto"
+              >
+                {publishing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                {publishing ? "Publicē…" : "Publicēt rezultātus"}
+              </Button>
+            </div>
+            {resultNotice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{resultNotice}</p>}
             <TabsContent value="manual">
               <p className="mb-4 text-sm text-muted-foreground">
                 {data.judge.sportMode === "team" ? "Ievadiet vietu vienreiz katrai komandai." : "Katram dalībniekam ievadiet vietu un saglabājiet."}
@@ -224,13 +238,14 @@ export function JudgePortal() {
             <TabsContent value="import" forceMount className="data-[state=inactive]:hidden">
               <ImportResults
                 data={data}
+                publishing={publishing}
                 onBusyChange={setImportBusy}
                 save={async (payload) =>
                   action({ action: "save-result", ...payload })
                 }
                 finished={async (message) => {
-                  setNotice(message);
-                  await load(true);
+                  if (await load(true)) setResultMode("manual");
+                  setResultNotice(message);
                 }}
               />
             </TabsContent>
@@ -460,6 +475,7 @@ function ManualRow({
   const [status, setStatus] = useState<Result["status"]>(
     conflict ? "ranked" : result?.status ?? "ranked",
   );
+  const rowLabel = team ? `${entry.schoolName} · ${resultTeamName(entry.teamName)}` : `${entry.firstName} ${entry.lastName}`;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit() {
@@ -488,6 +504,7 @@ function ManualRow({
           className="form-control w-20"
           type="number"
           min="1"
+          aria-label={`Vieta: ${rowLabel}`}
           value={placement}
           disabled={status !== "ranked"}
           onChange={(e) => setPlacement(e.target.value)}
@@ -565,21 +582,25 @@ async function extractFileText(file: File) {
 
 function ImportResults({
   data,
+  publishing,
   onBusyChange,
   save,
   finished,
 }: {
   data: JudgeData;
+  publishing: boolean;
   onBusyChange: (busy: boolean) => void;
   save: (payload: Record<string, unknown>) => Promise<unknown>;
   finished: (message: string) => Promise<void>;
 }) {
   const [categoryId, setCategoryId] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [extractedText, setExtractedText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const disabled = busy || publishing;
   const isTeamSport = data.judge.sportMode === "team";
   const categories = new Map(data.categories.map(category => [category.id, category]));
   const readyToSave = (row: PreviewRow) => row.matched && (row.status !== "ranked" || /^[1-9]\d*$/.test(row.placement));
@@ -587,7 +608,7 @@ function ImportResults({
     setPreview(rows => rows.map(row => row.entryId === entryId ? { ...row, ...changes } : row));
   }
   async function analyse() {
-    if (!file) return;
+    if (!file || disabled) return;
     setBusy(true); onBusyChange(true);
     setError("");
     setPreview([]);
@@ -630,7 +651,7 @@ function ImportResults({
     }
   }
   async function importRows() {
-    if (!file || !preview.some(readyToSave)) return;
+    if (!file || disabled || !preview.some(readyToSave)) return;
     setBusy(true); onBusyChange(true);
     setError("");
     try {
@@ -678,10 +699,12 @@ function ImportResults({
         });
       }
       await finished(
-        "Fails augšupielādēts un priekšskatījumā apstiprinātie rezultāti saglabāti. Pirms publicēšanas pārbaudiet vietu sadalījumu.",
+        "Rezultāti importēti un saglabāti. Pārbaudiet vietas un nospiediet “Publicēt rezultātus”.",
       );
       setPreview([]);
+      setExtractedText("");
       setFile(null);
+      if (fileInput.current) fileInput.current.value = "";
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Importēšana neizdevās.",
@@ -704,7 +727,7 @@ function ImportResults({
           const accessibleLabel = row.members ? `${row.schoolName} · ${label} · ${category?.name ?? ""}` : label;
           const unresolved = row.status === "ranked" && !/^[1-9]\d*$/.test(row.placement);
           return <tr key={row.entryId} className={unresolved ? "bg-red-50 [&>td]:border-red-200" : undefined}>
-            <td><input type="checkbox" checked={row.matched} disabled={busy} aria-label={`Iekļaut ${accessibleLabel}`}
+            <td><input type="checkbox" checked={row.matched} disabled={disabled} aria-label={`Iekļaut ${accessibleLabel}`}
               onChange={event => updateRow(row.entryId, { matched: event.target.checked })} /></td>
             <td className="font-black">
               {label}
@@ -716,9 +739,9 @@ function ImportResults({
             {showCategory && <td>{category?.discipline}<div className="text-xs text-muted-foreground">{category?.name}</div></td>}
             <td>{row.schoolName}</td>
             <td><input className="form-control w-20" type="number" min={1} value={row.placement}
-              disabled={busy || row.status !== "ranked"} aria-label={`Vieta: ${accessibleLabel}`}
+              disabled={disabled || row.status !== "ranked"} aria-label={`Vieta: ${accessibleLabel}`}
               onChange={event => updateRow(row.entryId, { placement: event.target.value })} /></td>
-            <td><select className="form-control w-28" value={row.status} disabled={busy} aria-label={`Statuss: ${accessibleLabel}`}
+            <td><select className="form-control w-28" value={row.status} disabled={disabled} aria-label={`Statuss: ${accessibleLabel}`}
               onChange={event => updateRow(row.entryId, { status: event.target.value as Result["status"] })}>
               <option value="ranked">Vieta</option><option value="dns">DNS</option><option value="dnf">DNF</option><option value="dsq">DSQ</option>
             </select></td>
@@ -754,7 +777,7 @@ function ImportResults({
             <select
               className="form-control"
               value={categoryId}
-              disabled={busy}
+              disabled={disabled}
               onChange={(e) => {
                 setCategoryId(e.target.value);
                 setPreview([]);
@@ -774,7 +797,8 @@ function ImportResults({
             <input
               className="form-control"
               type="file"
-              disabled={busy}
+              ref={fileInput}
+              disabled={disabled}
               accept=".pdf,.xlsx,.csv,.tsv,.txt"
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
@@ -785,7 +809,7 @@ function ImportResults({
           </label>
           <Button
             className="self-end bg-[#0c0942]"
-            disabled={!file || busy}
+            disabled={!file || disabled}
             onClick={analyse}
           >
             {busy ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}{" "}
@@ -808,14 +832,14 @@ function ImportResults({
                 Atzīmējiet tikai pareizi identificētās rindas. Saglabā tikai atzīmētās rindas ar vietu vai DNS/DNF/DSQ statusu.
               </p>
               <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-                <input type="checkbox" checked={preview.every(row => row.matched)} disabled={busy}
+                <input type="checkbox" checked={preview.every(row => row.matched)} disabled={disabled}
                   onChange={event => setPreview(rows => rows.map(row => ({ ...row, matched: event.target.checked })))} />
                 Iekļaut visus ({preview.length})
               </label>
             </div>
             <Button
               onClick={importRows}
-              disabled={busy || !preview.some(readyToSave)}
+              disabled={disabled || !preview.some(readyToSave)}
               className="bg-emerald-700 hover:bg-emerald-800"
             >
               <Upload /> Saglabāt un pievienot failu
