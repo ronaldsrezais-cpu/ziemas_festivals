@@ -82,6 +82,7 @@ export function JudgePortal() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [importBusy, setImportBusy] = useState(false);
+  const [resultMode, setResultMode] = useState("manual");
   const load = useCallback(async (refresh = false) => {
     if (!refresh) setLoading(true);
     const response = await fetch("/api/actions?view=judge");
@@ -155,37 +156,24 @@ export function JudgePortal() {
           {notice}
         </p>
       )}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl bg-[#0c0942] p-5 text-white">
+      <div className="mb-6 rounded-3xl bg-[#0c0942] p-5 text-white">
         <div>
           <strong className="text-xl">{data.entries.length} pieteikumi</strong>
           <p className="text-sm text-[#c7cfff]/75">
             {data.categories.length} kategorijās
           </p>
         </div>
-        <Button
-          onClick={publish}
-          disabled={importBusy}
-          className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]"
-        >
-          <CheckCircle2 /> {importBusy ? "Notiek imports…" : "Publicēt rezultātus"}
-        </Button>
       </div>
       <Tabs defaultValue="participants">
-        <TabsList className="mb-6 h-auto w-full flex-wrap justify-start rounded-2xl bg-[#0c0942] p-1.5 text-white">
+        <TabsList aria-label="Tiesnešu sadaļas" className="mb-6 h-auto w-full flex-wrap justify-start rounded-2xl bg-[#0c0942] p-1.5 text-white">
           <TabsTrigger value="contacts" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandu vadītāju e-pasti</TabsTrigger>
           <TabsTrigger value="start-protocols" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Starta protokoli</TabsTrigger>
           <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Reģistrētie dalībnieki</TabsTrigger>
           <TabsTrigger
-            value="manual"
+            value="results"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
           >
-            Rezultātu ievade
-          </TabsTrigger>
-          <TabsTrigger
-            value="import"
-            className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
-          >
-            Rezultātu imports
+            Rezultāti
           </TabsTrigger>
           <TabsTrigger
             value="files"
@@ -196,30 +184,57 @@ export function JudgePortal() {
         </TabsList>
         <TabsContent value="contacts"><JudgeContacts /></TabsContent>
         <TabsContent value="start-protocols"><JudgeStartProtocols sportId={data.judge.sportId} judgeId={data.judge.id} /></TabsContent>
-        <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību vietas ievadiet sadaļā “Rezultātu ievade”.</p></div><ParticipantList /></TabsContent>
-        <TabsContent value="manual">
-          <div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Sacensību rezultātu ievade</h2><p className="mt-2">{data.judge.sportMode === "team" ? "Ievadiet vietu vienreiz katrai komandai." : "Katram dalībniekam ievadiet vietu un saglabājiet."} Pēc pārbaudes izmantojiet “Publicēt rezultātus”.</p></div>
-          <ManualResults
-            data={data}
-            remove={(result, entry, team) => remove("result", result.id, team ? `${entry.schoolName} · ${resultTeamName(entry.teamName)} rezultātu` : `${entry.firstName} ${entry.lastName} rezultātu`)}
-            save={async (payload) => {
-              await action({ action: "save-result", ...payload });
-              await load(true);
-            }}
-          />
-        </TabsContent>
-        <TabsContent value="import">
-          <ImportResults
-            data={data}
-            onBusyChange={setImportBusy}
-            save={async (payload) =>
-              action({ action: "save-result", ...payload })
-            }
-            finished={async (message) => {
-              setNotice(message);
-              await load(true);
-            }}
-          />
+        <TabsContent value="participants"><div className="mb-5 rounded-2xl bg-[#e9ecff] p-5"><h2 className="text-xl font-black">Reģistrētie dalībnieki</h2><p className="mt-2">Šeit skatiet un eksportējiet skolu pieteiktos dalībniekus. Sacensību rezultātus ievadiet vai importējiet sadaļā “Rezultāti”.</p></div><ParticipantList /></TabsContent>
+        <TabsContent value="results">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#e9ecff] p-5">
+            <div>
+              <h2 className="text-xl font-black">Sacensību rezultāti</h2>
+              <p className="mt-2 text-sm">Izvēlieties ievades veidu. Pārbaudiet un saglabājiet rezultātus pirms publicēšanas.</p>
+            </div>
+            <Button
+              onClick={publish}
+              disabled={importBusy}
+              className="bg-[#d2d61d] text-[#0c0942] hover:bg-[#e6e956]"
+            >
+              <CheckCircle2 /> {importBusy ? "Notiek imports…" : "Publicēt rezultātus"}
+            </Button>
+          </div>
+          <Tabs value={resultMode} onValueChange={setResultMode}>
+            <TabsList aria-label="Rezultātu ievades veids" className="mb-4 h-auto max-w-full flex-wrap gap-1 bg-[#e9ecff] p-1">
+              <TabsTrigger value="manual" disabled={importBusy} className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
+                Ievadīt manuāli
+              </TabsTrigger>
+              <TabsTrigger value="import" className="min-h-10 px-4 data-[state=active]:bg-[#0c0942] data-[state=active]:text-white">
+                Importēt no faila
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="manual">
+              <p className="mb-4 text-sm text-muted-foreground">
+                {data.judge.sportMode === "team" ? "Ievadiet vietu vienreiz katrai komandai." : "Katram dalībniekam ievadiet vietu un saglabājiet."}
+              </p>
+              <ManualResults
+                data={data}
+                remove={(result, entry, team) => remove("result", result.id, team ? `${entry.schoolName} · ${resultTeamName(entry.teamName)} rezultātu` : `${entry.firstName} ${entry.lastName} rezultātu`)}
+                save={async (payload) => {
+                  await action({ action: "save-result", ...payload });
+                  await load(true);
+                }}
+              />
+            </TabsContent>
+            <TabsContent value="import" forceMount className="data-[state=inactive]:hidden">
+              <ImportResults
+                data={data}
+                onBusyChange={setImportBusy}
+                save={async (payload) =>
+                  action({ action: "save-result", ...payload })
+                }
+                finished={async (message) => {
+                  setNotice(message);
+                  await load(true);
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent value="files">
           <div className="glass-panel overflow-hidden rounded-3xl">
