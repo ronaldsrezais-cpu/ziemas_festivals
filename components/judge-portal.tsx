@@ -73,7 +73,6 @@ type PreviewRow = Entry & {
   placement: string;
   status: Result["status"];
   score: string;
-  matched: boolean;
 };
 
 export function JudgePortal() {
@@ -607,9 +606,9 @@ function ImportResults({
   const categories = new Map(data.categories.map(category => [category.id, category]));
   const hasResult = (row: Pick<PreviewRow, "placement" | "status">) =>
     row.status !== "ranked" || (/^[1-9]\d*$/.test(row.placement) && Number(row.placement) <= 2147483647);
-  const readyToSave = (row: PreviewRow) => row.matched && hasResult(row);
-  const readyCount = preview.filter(readyToSave).length;
-  function updateRow(entryId: number, changes: Partial<Pick<PreviewRow, "matched" | "placement" | "status">>) {
+  const rowsToSave = preview.filter(hasResult);
+  const readyCount = rowsToSave.length;
+  function updateRow(entryId: number, changes: Partial<Pick<PreviewRow, "placement" | "status">>) {
     setPreview(rows => rows.map(row => row.entryId === entryId ? { ...row, ...changes } : row));
   }
   async function analyse() {
@@ -642,10 +641,10 @@ function ImportResults({
             categoryName: category?.name ?? "", discipline: category?.discipline ?? "" };
         });
         const matches = previewTeamResultMatches(text, teams, data.categories);
-        setPreview(teams.map(({ entry, members }, index) => ({ ...entry, members, ...matches[index], matched: hasResult(matches[index]), score: "" })));
+        setPreview(teams.map(({ entry, members }, index) => ({ ...entry, members, ...matches[index], score: "" })));
       } else {
         const matches = previewResultMatches(text, selectedEntries);
-        setPreview(selectedEntries.map((entry, index) => ({ ...entry, ...matches[index], matched: hasResult(matches[index]), score: "" })));
+        setPreview(selectedEntries.map((entry, index) => ({ ...entry, ...matches[index], score: "" })));
       }
     } catch (reason) {
       setError(
@@ -656,13 +655,12 @@ function ImportResults({
     }
   }
   async function importRows() {
-    if (!file || disabled || !preview.some(readyToSave)) return;
+    if (!file || disabled || !readyCount) return;
     setBusy(true); onBusyChange(true);
     setError("");
     let stage = "Neizdevās saņemt atļauju augšupielādēt failu";
     let savedCount = 0;
     try {
-      const rowsToSave = preview.filter(readyToSave);
       const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
       const contentType = ({ pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         csv: "text/csv", tsv: "text/tab-separated-values", txt: "text/plain" } as Record<string, string>)[extension] ?? "application/octet-stream";
@@ -700,7 +698,7 @@ function ImportResults({
       });
       const uploadBody = await uploadResponse.json();
       if (!uploadResponse.ok) throw new Error(uploadBody.error);
-      stage = "Fails pievienots, bet neizdevās saglabāt visus atlasītos rezultātus";
+      stage = "Fails pievienots, bet neizdevās saglabāt visus rezultātus";
       for (const row of rowsToSave) {
         await save({
           categoryId: row.categoryId,
@@ -728,7 +726,7 @@ function ImportResults({
     return <div className="overflow-x-auto">
       <table className="data-table">
         <thead><tr>
-          <th>Iekļaut</th><th>{isTeamSport ? "Komanda" : "Dalībnieks"}</th>
+          <th>{isTeamSport ? "Komanda" : "Dalībnieks"}</th>
           {showCategory && <th>Disciplīna / kategorija</th>}
           <th>Skola</th><th>Vieta</th><th>Statuss</th>
         </tr></thead>
@@ -736,10 +734,8 @@ function ImportResults({
           const category = categories.get(row.categoryId);
           const label = row.members ? resultTeamName(row.teamName) : `${row.firstName} ${row.lastName}`;
           const accessibleLabel = row.members ? `${row.schoolName} · ${label} · ${category?.name ?? ""}` : label;
-          const unresolved = row.status === "ranked" && !/^[1-9]\d*$/.test(row.placement);
+          const unresolved = !hasResult(row);
           return <tr key={row.entryId} className={unresolved ? "bg-red-50 [&>td]:border-red-200" : undefined}>
-            <td><input type="checkbox" checked={row.matched} disabled={disabled} aria-label={`Iekļaut ${accessibleLabel}`}
-              onChange={event => updateRow(row.entryId, { matched: event.target.checked })} /></td>
             <td className="font-black">
               {label}
               {row.members && <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.members.map(member => `${member.firstName} ${member.lastName}`).join(", ")}</p>}
@@ -840,15 +836,15 @@ function ImportResults({
             <div>
               <h3 className="text-lg font-black">2. Pārbaudiet un saglabājiet rezultātus</h3>
               <p className="text-sm text-[#65647b]">
-                Pārbaudiet atlasītās rindas un nospiediet “Saglabāt failu un rezultātus”. Ja kāda vieta nav nolasīta, ievadiet to un atzīmējiet attiecīgo rindu.
+                Saglabās visas rindas ar norādītu vietu vai DNS, DNF, DSQ statusu. Pārbaudiet nolasītās vietas un papildiniet trūkstošās. Rindas bez vietas vai statusa netiks saglabātas.
               </p>
               <p className="mt-2 text-sm font-bold" role="status">
-                {readyCount ? `Saglabāšanai atlasītas rindas: ${readyCount}.` : "Saglabāšanai nav atlasītu rindu ar vietu vai statusu."}
+                {readyCount ? `Saglabāšanai gatavas rindas: ${readyCount}.` : "Lai saglabātu, norādiet vietu vai statusu vismaz vienā rindā."}
               </p>
             </div>
             <Button
               onClick={importRows}
-              disabled={disabled || !preview.some(readyToSave)}
+              disabled={disabled || !readyCount}
               className="bg-emerald-700 hover:bg-emerald-800"
             >
               <Upload /> Saglabāt failu un rezultātus
