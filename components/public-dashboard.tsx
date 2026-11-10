@@ -470,8 +470,8 @@ function ResultPlace({ placement, status }: Pick<PublicData["results"][number], 
   if (!medal) return placement;
 
   return (
-    <span className="inline-flex items-center gap-2 whitespace-nowrap">
-      <span>{placement}</span>
+    <span className="inline-grid grid-cols-[1.25rem_1.75rem] items-center gap-2 align-middle">
+      <span className="tabular-nums">{placement}</span>
       <span className={`inline-flex size-7 items-center justify-center rounded-full ring-1 ring-inset ${medal.color}`}>
         <Medal className="size-4" aria-hidden="true" />
         <span className="sr-only">{medal.label}</span>
