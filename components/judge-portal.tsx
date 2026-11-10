@@ -181,9 +181,9 @@ export function JudgePortal() {
       </div>
       <Tabs defaultValue="participants">
         <TabsList aria-label="Tiesnešu sadaļas" className="mb-6 h-auto w-full flex-wrap justify-start rounded-2xl bg-[#0c0942] p-1.5 text-white">
+          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Reģistrētie dalībnieki</TabsTrigger>
           <TabsTrigger value="contacts" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandu vadītāju e-pasti</TabsTrigger>
           <TabsTrigger value="start-protocols" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Starta protokoli</TabsTrigger>
-          <TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Reģistrētie dalībnieki</TabsTrigger>
           <TabsTrigger
             value="results"
             className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]"
