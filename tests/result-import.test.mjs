@@ -97,3 +97,12 @@ test('team preview uses exact group headings to separate school-only rows', () =
     { name: '2. grupa', discipline: team.discipline },
   ])[0].placement, '3');
 });
+
+test('team protocols preserve rank columns with comma-separated names and scores', () => {
+  const namedTeam = { ...team, schoolName: '[TESTS 2026] Testa skola, filiāle' };
+  for (const text of [
+    'Skola\tVieta\tPunkti\nTesta skola, filiāle\t2\t10,5',
+    'Skola;Vieta;Punkti\nTesta skola, filiāle;2;10,5',
+    'Skola,Vieta,Punkti\n"Testa skola, filiāle",2,"10,5"',
+  ]) assert.equal(previewTeamResultMatches(text, [namedTeam])[0].placement, '2');
+});

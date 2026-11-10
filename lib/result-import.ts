@@ -19,8 +19,24 @@ function containsName(line: string, entry: ImportEntry) {
 }
 
 function cells(line: string) {
-  // PDF/XLSX extraction uses tabs. Text files may use semicolons or commas.
-  return line.split(/\t|;|,/).map((cell) => cell.trim().replace(/^"|"$/g, ""));
+  // PDF and XLSX extraction use tabs. A comma inside a school name must not
+  // shift the columns in tab-separated, semicolon-separated or quoted CSV rows.
+  const outsideQuotes = line.replace(/"(?:""|[^"])*"/g, "");
+  const delimiter = outsideQuotes.includes("\t") ? "\t" : outsideQuotes.includes(";") ? ";" : ",";
+  const values: string[] = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index++) {
+    const character = line[index];
+    if (character === '"' && (quoted || !value.trim())) {
+      if (quoted && line[index + 1] === '"') { value += '"'; index++; }
+      else quoted = !quoted;
+    } else if (character === delimiter && !quoted) {
+      values.push(value.trim()); value = "";
+    } else value += character;
+  }
+  values.push(value.trim());
+  return values;
 }
 
 function parseResultRows(text: string) {

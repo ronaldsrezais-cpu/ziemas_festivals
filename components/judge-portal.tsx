@@ -212,14 +212,16 @@ export function JudgePortal() {
                   Importēt no faila
                 </TabsTrigger>
               </TabsList>
-              <Button
-                onClick={publish}
-                disabled={importBusy || publishing}
-                className="min-h-11 w-full bg-[#d2d61d] font-bold text-[#0c0942] hover:bg-[#e6e956] sm:w-auto"
-              >
-                {publishing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-                {publishing ? "Publicē…" : "Publicēt rezultātus"}
-              </Button>
+              {resultMode === "manual" && (
+                <Button
+                  onClick={publish}
+                  disabled={importBusy || publishing}
+                  className="min-h-11 w-full bg-[#d2d61d] font-bold text-[#0c0942] hover:bg-[#e6e956] sm:w-auto"
+                >
+                  {publishing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                  {publishing ? "Publicē…" : "Publicēt rezultātus"}
+                </Button>
+              )}
             </div>
             {resultNotice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{resultNotice}</p>}
             <TabsContent value="manual">
@@ -603,7 +605,10 @@ function ImportResults({
   const disabled = busy || publishing;
   const isTeamSport = data.judge.sportMode === "team";
   const categories = new Map(data.categories.map(category => [category.id, category]));
-  const readyToSave = (row: PreviewRow) => row.matched && (row.status !== "ranked" || /^[1-9]\d*$/.test(row.placement));
+  const hasResult = (row: Pick<PreviewRow, "placement" | "status">) =>
+    row.status !== "ranked" || (/^[1-9]\d*$/.test(row.placement) && Number(row.placement) <= 2147483647);
+  const readyToSave = (row: PreviewRow) => row.matched && hasResult(row);
+  const readyCount = preview.filter(readyToSave).length;
   function updateRow(entryId: number, changes: Partial<Pick<PreviewRow, "matched" | "placement" | "status">>) {
     setPreview(rows => rows.map(row => row.entryId === entryId ? { ...row, ...changes } : row));
   }
@@ -637,10 +642,10 @@ function ImportResults({
             categoryName: category?.name ?? "", discipline: category?.discipline ?? "" };
         });
         const matches = previewTeamResultMatches(text, teams, data.categories);
-        setPreview(teams.map(({ entry, members }, index) => ({ ...entry, members, ...matches[index], matched: false, score: "" })));
+        setPreview(teams.map(({ entry, members }, index) => ({ ...entry, members, ...matches[index], matched: hasResult(matches[index]), score: "" })));
       } else {
         const matches = previewResultMatches(text, selectedEntries);
-        setPreview(selectedEntries.map((entry, index) => ({ ...entry, ...matches[index], matched: false, score: "" })));
+        setPreview(selectedEntries.map((entry, index) => ({ ...entry, ...matches[index], matched: hasResult(matches[index]), score: "" })));
       }
     } catch (reason) {
       setError(
@@ -654,8 +659,13 @@ function ImportResults({
     if (!file || disabled || !preview.some(readyToSave)) return;
     setBusy(true); onBusyChange(true);
     setError("");
+    let stage = "Neizdevās saņemt atļauju augšupielādēt failu";
+    let savedCount = 0;
     try {
       const rowsToSave = preview.filter(readyToSave);
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+      const contentType = ({ pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        csv: "text/csv", tsv: "text/tab-separated-values", txt: "text/plain" } as Record<string, string>)[extension] ?? "application/octet-stream";
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const pathname = `results/${data.judge.sportId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const tokenResponse = await fetch("/api/uploads", {
@@ -672,22 +682,25 @@ function ImportResults({
         throw new Error(tokenBody?.error ?? `Neizdevās saņemt faila augšupielādes atļauju (HTTP ${tokenResponse.status}). Pārlādējiet lapu un pieslēdzieties tiesneša sadaļai vēlreiz.`);
       }
       // Only the short-lived, path-restricted client token reaches the browser.
+      stage = "Neizdevās augšupielādēt rezultātu failu";
       const blob = await put(pathname, file, {
         access: "private",
         token: tokenBody.clientToken,
-        contentType: file.type || "application/octet-stream",
+        contentType,
       });
+      stage = "Fails augšupielādēts, bet to neizdevās pievienot rezultātiem";
       const uploadResponse = await fetch("/api/uploads", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: blob.url,
           fileName: file.name,
-          mimeType: file.type || "application/octet-stream",
+          mimeType: contentType,
         }),
       });
       const uploadBody = await uploadResponse.json();
       if (!uploadResponse.ok) throw new Error(uploadBody.error);
+      stage = "Fails pievienots, bet neizdevās saglabāt visus atlasītos rezultātus";
       for (const row of rowsToSave) {
         await save({
           categoryId: row.categoryId,
@@ -697,18 +710,16 @@ function ImportResults({
           score: row.score,
           sourceUploadId: uploadBody.upload.id,
         });
+        savedCount++;
       }
-      await finished(
-        "Rezultāti importēti un saglabāti. Pārbaudiet vietas un nospiediet “Publicēt rezultātus”.",
-      );
+      await finished(`Fails pievienots. Saglabātas rezultātu rindas: ${savedCount}. Pārbaudiet vietas un nospiediet “Publicēt rezultātus”.`);
       setPreview([]);
       setExtractedText("");
       setFile(null);
       if (fileInput.current) fileInput.current.value = "";
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Importēšana neizdevās.",
-      );
+      const detail = reason instanceof Error ? reason.message : "Nezināma kļūda.";
+      setError(`${stage}. ${savedCount ? `Jau saglabātas rindas: ${savedCount}. ` : ""}${detail}`);
     } finally {
       setBusy(false); onBusyChange(false);
     }
@@ -760,8 +771,9 @@ function ImportResults({
   }
   return (
     <div className="grid gap-6">
+      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 font-bold text-red-800">{error}</p>}
       <section className="glass-panel rounded-3xl p-6">
-        <h2 className="text-xl font-black">Rezultātu faila priekšskatījums</h2>
+        <h2 className="text-xl font-black">1. Izvēlieties un nolasiet failu</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB.{" "}
           {isTeamSport
@@ -816,25 +828,24 @@ function ImportResults({
             Nolasīt failu
           </Button>
         </div>
-        {error && (
-          <p className="mt-4 rounded-xl bg-red-50 p-3 font-bold text-red-800">
-            {error}
-          </p>
-        )}
+
       </section>
       {extractedText && <details className="glass-panel rounded-2xl p-5"><summary className="cursor-pointer font-bold">Parādīt no faila nolasīto tekstu</summary><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap text-xs">{extractedText}</pre></details>}
       {preview.length > 0 && (
         <section className="glass-panel overflow-hidden rounded-3xl">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <div>
-              <h3 className="text-lg font-black">{isTeamSport ? "Komandu rezultātu priekšskatījums" : "Atbilstību priekšskatījums"}</h3>
+              <h3 className="text-lg font-black">2. Pārbaudiet un saglabājiet rezultātus</h3>
               <p className="text-sm text-[#65647b]">
-                Atzīmējiet tikai pareizi identificētās rindas. Saglabā tikai atzīmētās rindas ar vietu vai DNS/DNF/DSQ statusu.
+                Priekšskatījums vēl nav saglabāts. Pārbaudiet automātiski atzīmētās rindas. Ja vieta nav nolasīta, ievadiet to un atzīmējiet rindu.
+              </p>
+              <p className="mt-2 text-sm font-bold" role="status">
+                {readyCount ? `Saglabāšanai atlasītas rindas: ${readyCount}.` : "Saglabāšanai nav atlasītu rindu ar vietu vai statusu."}
               </p>
               <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-                <input type="checkbox" checked={preview.every(row => row.matched)} disabled={disabled}
-                  onChange={event => setPreview(rows => rows.map(row => ({ ...row, matched: event.target.checked })))} />
-                Iekļaut visus ({preview.length})
+                <input type="checkbox" checked={preview.some(hasResult) && preview.filter(hasResult).every(row => row.matched)} disabled={disabled || !preview.some(hasResult)}
+                  onChange={event => setPreview(rows => rows.map(row => ({ ...row, matched: event.target.checked && hasResult(row) })))} />
+                Iekļaut visas aizpildītās rindas
               </label>
             </div>
             <Button
