@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { previewResultMatches } from '../lib/result-import.ts';
+import { previewResultMatches, previewTeamResultMatches } from '../lib/result-import.ts';
 import { recoverSchoolAccessCode } from '../lib/school-access-code.ts';
 const entry = { entryId: 1, firstName: 'Jānis', lastName: 'Bērziņš', schoolName: 'Testa skola' };
 test('school alone does not identify a participant', () => {
@@ -53,4 +53,47 @@ test('OE orienteering PDF Pl header and non-finish statuses are recognized witho
   assert.equal(matches[0].placement, '1');
   assert.equal(matches[1].placement, ''); assert.equal(matches[1].status, 'dns');
   assert.equal(matches[2].placement, ''); assert.equal(matches[2].status, 'dnf');
+});
+
+const team = {
+  teamName: '1. komanda',
+  schoolName: 'Testa skola',
+  categoryName: '1. grupa',
+  discipline: 'Sniega volejbols',
+  members: [entry, { ...entry, entryId: 2, firstName: 'Anna', lastName: 'Kalniņa' }],
+};
+
+test('team preview merges named team members into one result, even on a shared source row', () => {
+  const [result] = previewTeamResultMatches('Vieta;Dalībnieki;Skola\n2;Jānis Bērziņš un Anna Kalniņa;Testa skola\n2;Anna Kalniņa;Testa skola', [team]);
+  assert.equal(result.placement, '2');
+  assert.equal(result.sourceLine.split('\n').length, 2);
+});
+
+test('team preview recognizes school-only rows and distinguishes teams and groups', () => {
+  const teams = [team, { ...team, teamName: '2. komanda', members: [] }, { ...team, categoryName: '2. grupa' }];
+  const file = 'Vieta;Skola;Komanda;Grupa\n1;Testa skola;2. komanda;1. grupa\n2;Testa skola;1. komanda;2. grupa\nDNF;Testa skola;1. komanda;1. grupa';
+  const matches = previewTeamResultMatches(file, teams);
+  assert.deepEqual(matches.map(result => [result.placement, result.status]), [['', 'dnf'], ['1', 'ranked'], ['2', 'ranked']]);
+  const [single] = previewTeamResultMatches('Vieta;Skola\n1;Testa skola', [team]);
+  assert.equal(single.placement, '1');
+});
+
+test('ambiguous school, conflicting member placements and unknown participants need manual review', () => {
+  const ambiguous = previewTeamResultMatches('Vieta;Skola\n1;Testa skola', [team, { ...team, categoryName: '2. grupa' }]);
+  assert.ok(ambiguous.every(result => !result.placement && /vairākām komandām/.test(result.matchNote)));
+  const [conflict] = previewTeamResultMatches('Vieta;Vārds\n1;Jānis Bērziņš\n2;Anna Kalniņa', [team]);
+  assert.equal(conflict.placement, '');
+  assert.match(conflict.matchNote, /atšķirīgas vietas/);
+  const [unknown] = previewTeamResultMatches('Vieta;Vārds;Skola\n1;Nezināms Dalībnieks;Testa skola', [team]);
+  assert.equal(unknown.placement, '');
+});
+
+test('team preview uses exact group headings to separate school-only rows', () => {
+  const second = { ...team, categoryName: '2. grupa' };
+  const file = '1. grupa\nVieta;Skola\n3;Testa skola\n2. grupa\nVieta;Skola\n1;Testa skola';
+  assert.deepEqual(previewTeamResultMatches(file, [team, second]).map(result => result.placement), ['3', '1']);
+  assert.equal(previewTeamResultMatches(file, [team], [
+    { name: '1. grupa', discipline: team.discipline },
+    { name: '2. grupa', discipline: team.discipline },
+  ])[0].placement, '3');
 });

@@ -15,8 +15,8 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
-import { combineTeamImportRows, resultTeamKey, resultTeamName } from "@/lib/team-results";
-import { previewResultMatches } from "@/lib/result-import";
+import { resultTeamKey, resultTeamName } from "@/lib/team-results";
+import { previewResultMatches, previewTeamResultMatches } from "@/lib/result-import";
 import { ParticipantList } from "@/components/participant-list";
 import { PageHeading } from "@/components/site-shell";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ type JudgeData = {
   }>;
 };
 type PreviewRow = Entry & {
+  members?: Entry[];
   sourceLine: string;
   matchNote: string;
   placement: string;
@@ -564,6 +565,12 @@ function ImportResults({
   const [extractedText, setExtractedText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const isTeamSport = data.judge.sportMode === "team";
+  const categories = new Map(data.categories.map(category => [category.id, category]));
+  const readyToSave = (row: PreviewRow) => row.matched && (row.status !== "ranked" || /^[1-9]\d*$/.test(row.placement));
+  function updateRow(entryId: number, changes: Partial<Pick<PreviewRow, "matched" | "placement" | "status">>) {
+    setPreview(rows => rows.map(row => row.entryId === entryId ? { ...row, ...changes } : row));
+  }
   async function analyse() {
     if (!file) return;
     setBusy(true); onBusyChange(true);
@@ -579,14 +586,26 @@ function ImportResults({
       if (!text.trim()) throw new Error("Failā nav nolasāma teksta. Skenētam PDF nepieciešama teksta atpazīšana; izmantojiet Excel vai CSV failu.");
       const selectedEntries = data.entries.filter((entry) => !categoryId || entry.categoryId === Number(categoryId));
       if (!selectedEntries.length) throw new Error("Izvēlētajā atlasē nav pieteiktu dalībnieku.");
-      const matches = previewResultMatches(text, selectedEntries);
-      const rows = selectedEntries.map((entry, index) => ({
-        ...entry,
-        ...matches[index],
-        matched: false,
-        score: "",
-      }));
-      setPreview(rows);
+      if (isTeamSport) {
+        const groups = new Map<string, Entry[]>();
+        for (const entry of selectedEntries) {
+          const key = resultTeamKey(entry);
+          const members = groups.get(key) ?? [];
+          members.push(entry);
+          groups.set(key, members);
+        }
+        const teams = [...groups.values()].map(members => {
+          const entry = members[0];
+          const category = categories.get(entry.categoryId);
+          return { entry, members, teamName: resultTeamName(entry.teamName), schoolName: entry.schoolName,
+            categoryName: category?.name ?? "", discipline: category?.discipline ?? "" };
+        });
+        const matches = previewTeamResultMatches(text, teams, data.categories);
+        setPreview(teams.map(({ entry, members }, index) => ({ ...entry, members, ...matches[index], matched: false, score: "" })));
+      } else {
+        const matches = previewResultMatches(text, selectedEntries);
+        setPreview(selectedEntries.map((entry, index) => ({ ...entry, ...matches[index], matched: false, score: "" })));
+      }
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Failu neizdevās nolasīt.",
@@ -596,12 +615,11 @@ function ImportResults({
     }
   }
   async function importRows() {
-    if (!file || !preview.some((row) => row.matched && (row.placement || row.status !== "ranked"))) return;
+    if (!file || !preview.some(readyToSave)) return;
     setBusy(true); onBusyChange(true);
     setError("");
     try {
-      const selected = preview.filter(row => row.matched && (row.placement || row.status !== "ranked"));
-      const rowsToSave = data.judge.sportMode === "team" ? combineTeamImportRows(selected) : selected;
+      const rowsToSave = preview.filter(readyToSave);
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const pathname = `results/${data.judge.sportId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const tokenResponse = await fetch("/api/uploads", {
@@ -638,7 +656,7 @@ function ImportResults({
         await save({
           categoryId: row.categoryId,
           entryId: row.entryId,
-          placement: row.placement ? Number(row.placement) : null,
+          placement: row.status === "ranked" ? Number(row.placement) : null,
           status: row.status,
           score: row.score,
           sourceUploadId: uploadBody.upload.id,
@@ -657,15 +675,62 @@ function ImportResults({
       setBusy(false); onBusyChange(false);
     }
   }
+  function renderPreviewTable(rows: PreviewRow[], showCategory: boolean) {
+    return <div className="overflow-x-auto">
+      <table className="data-table">
+        <thead><tr>
+          <th>Iekļaut</th><th>{isTeamSport ? "Komanda" : "Dalībnieks"}</th>
+          {showCategory && <th>Disciplīna / kategorija</th>}
+          <th>Skola</th><th>Vieta</th><th>Statuss</th>
+        </tr></thead>
+        <tbody>{rows.map(row => {
+          const category = categories.get(row.categoryId);
+          const label = row.members ? resultTeamName(row.teamName) : `${row.firstName} ${row.lastName}`;
+          const accessibleLabel = row.members ? `${row.schoolName} · ${label} · ${category?.name ?? ""}` : label;
+          const unresolved = row.status === "ranked" && !/^[1-9]\d*$/.test(row.placement);
+          return <tr key={row.entryId} className={unresolved ? "bg-red-50 [&>td]:border-red-200" : undefined}>
+            <td><input type="checkbox" checked={row.matched} disabled={busy} aria-label={`Iekļaut ${accessibleLabel}`}
+              onChange={event => updateRow(row.entryId, { matched: event.target.checked })} /></td>
+            <td className="font-black">
+              {label}
+              {row.members && <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.members.map(member => `${member.firstName} ${member.lastName}`).join(", ")}</p>}
+              <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.matchNote}</p>
+              {unresolved && <p className="mt-1 text-xs font-bold text-red-800">Norādiet vietu vai DNS/DNF/DSQ statusu, lai saglabātu rezultātu.</p>}
+              {row.sourceLine && <details className="mt-2 max-w-md text-xs font-normal"><summary className="cursor-pointer">Parādīt atbilstības failā</summary><pre className="mt-1 whitespace-pre-wrap break-words">{row.sourceLine}</pre></details>}
+            </td>
+            {showCategory && <td>{category?.discipline}<div className="text-xs text-muted-foreground">{category?.name}</div></td>}
+            <td>{row.schoolName}</td>
+            <td><input className="form-control w-20" type="number" min={1} value={row.placement}
+              disabled={busy || row.status !== "ranked"} aria-label={`Vieta: ${accessibleLabel}`}
+              onChange={event => updateRow(row.entryId, { placement: event.target.value })} /></td>
+            <td><select className="form-control w-28" value={row.status} disabled={busy} aria-label={`Statuss: ${accessibleLabel}`}
+              onChange={event => updateRow(row.entryId, { status: event.target.value as Result["status"] })}>
+              <option value="ranked">Vieta</option><option value="dns">DNS</option><option value="dnf">DNF</option><option value="dsq">DSQ</option>
+            </select></td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>;
+  }
+  const previewByCategory = new Map<number, PreviewRow[]>();
+  if (isTeamSport) {
+    for (const row of preview) {
+      const rows = previewByCategory.get(row.categoryId) ?? [];
+      rows.push(row);
+      previewByCategory.set(row.categoryId, rows);
+    }
+  }
   return (
     <div className="grid gap-6">
       <section className="glass-panel rounded-3xl p-6">
         <h2 className="text-xl font-black">Rezultātu faila priekšskatījums</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
-          Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB. Sistēma
-          salīdzina vārdus un uzvārdus ar sava sporta veida visu disciplīnu dalībniekiem vai izvēlēto kategoriju.
-          Vietu automātiski piedāvā tikai tad, ja atpazīta kolonna “Vieta”, “Place”, “Pl”, “Rank” vai “Position”.
-          Pārbaudiet avota rindu un paši atzīmējiet iekļaujamos dalībniekus. Ja dalībnieks startē vairākās disciplīnās, pārbaudiet kategoriju un ievadiet attiecīgo vietu no oriģināla — neskaidras atbilstības netiek piešķirtas automātiski.
+          Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB.{" "}
+          {isTeamSport
+            ? "Priekšskatījumā katrai komandai ir viena rinda. Sistēma salīdzina skolas nosaukumu un dalībnieku vārdus ar reģistrētajām komandām."
+            : "Sistēma salīdzina dalībnieku vārdus un uzvārdus ar sava sporta veida pieteikumiem."}{" "}
+          Vietu automātiski piedāvā, ja atpazīta kolonna “Vieta”, “Place”, “Pl”, “Rank” vai “Position”.
+          Pārbaudiet piedāvātos rezultātus un precizējiet neskaidrās atbilstības pēc oriģināla.
           Skenētus PDF bez teksta slāņa sistēma nenolasa.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_auto]">
@@ -721,9 +786,9 @@ function ImportResults({
       {extractedText && <details className="glass-panel rounded-2xl p-5"><summary className="cursor-pointer font-bold">Parādīt no faila nolasīto tekstu</summary><pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap text-xs">{extractedText}</pre></details>}
       {preview.length > 0 && (
         <section className="glass-panel overflow-hidden rounded-3xl">
-          <div className="flex items-center justify-between gap-3 border-b p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <div>
-              <h3 className="text-lg font-black">Atbilstību priekšskatījums</h3>
+              <h3 className="text-lg font-black">{isTeamSport ? "Komandu rezultātu priekšskatījums" : "Atbilstību priekšskatījums"}</h3>
               <p className="text-sm text-[#65647b]">
                 Atzīmējiet tikai pareizi identificētās rindas. Saglabā tikai atzīmētās rindas ar vietu vai DNS/DNF/DSQ statusu.
               </p>
@@ -735,96 +800,20 @@ function ImportResults({
             </div>
             <Button
               onClick={importRows}
-              disabled={busy || !preview.some((row) => row.matched && (row.placement || row.status !== "ranked"))}
+              disabled={busy || !preview.some(readyToSave)}
               className="bg-emerald-700 hover:bg-emerald-800"
             >
               <Upload /> Saglabāt un pievienot failu
             </Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Iekļaut</th>
-                  <th>Dalībnieks</th>
-                  <th>Disciplīna / kategorija</th>
-                  <th>Skola</th>
-                  <th>Vieta</th>
-                  <th>Statuss</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, index) => (
-                  <tr key={row.entryId} className={!row.placement && row.status === "ranked" ? "bg-red-50 [&>td]:border-red-200" : undefined}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={row.matched}
-                        disabled={busy}
-                        aria-label={`Iekļaut ${row.firstName} ${row.lastName}`}
-                        onChange={(e) =>
-                          setPreview((values) =>
-                            values.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, matched: e.target.checked }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td className="font-black">
-                      {row.firstName} {row.lastName}
-                      <p className="mt-1 max-w-md text-xs font-normal text-muted-foreground">{row.matchNote}</p>
-                      {!row.placement && row.status === "ranked" && <p className="mt-1 text-xs font-bold text-red-800">Vieta nav noteikta — precizējiet no oriģināla. Šī rinda netiks saglabāta bez vietas vai DNS/DNF/DSQ statusa.</p>}
-                      {row.sourceLine && <details className="mt-2 max-w-md text-xs font-normal"><summary className="cursor-pointer">Atrasta faila rinda</summary><pre className="mt-1 whitespace-pre-wrap break-words">{row.sourceLine}</pre></details>}
-                    </td>
-                    <td>{data.categories.find(category => category.id === row.categoryId)?.discipline}<div className="text-xs text-muted-foreground">{data.categories.find(category => category.id === row.categoryId)?.name}</div></td>
-                    <td>{row.schoolName}</td>
-                    <td>
-                      <input
-                        className="form-control w-20"
-                        type="number"
-                        value={row.placement}
-                        onChange={(e) =>
-                          setPreview((values) =>
-                            values.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, placement: e.target.value }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <select
-                        className="form-control w-28"
-                        value={row.status}
-                        onChange={(e) =>
-                          setPreview((values) =>
-                            values.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? {
-                                    ...item,
-                                    status: e.target.value as Result["status"],
-                                  }
-                                : item,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="ranked">Vieta</option>
-                        <option value="dns">DNS</option>
-                        <option value="dnf">DNF</option>
-                        <option value="dsq">DSQ</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {isTeamSport ? data.categories.flatMap(category => {
+            const rows = previewByCategory.get(category.id);
+            if (!rows?.length) return [];
+            return <section key={category.id}>
+              <h4 className="border-y bg-[#f0f1ff] px-5 py-3 font-black">{category.discipline} · {category.name}</h4>
+              {renderPreviewTable(rows, false)}
+            </section>;
+          }) : renderPreviewTable(preview, true)}
         </section>
       )}
     </div>
