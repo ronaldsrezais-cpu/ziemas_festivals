@@ -458,6 +458,28 @@ function CompetitionProtocols({ data, rows }: { data: PublicData; rows: PublicDa
   </section>;
 }
 
+const podiumMedals: Readonly<Partial<Record<number, { label: string; color: string }>>> = {
+  1: { label: "Zelta medaļa", color: "bg-amber-100 text-amber-800 ring-amber-400" },
+  2: { label: "Sudraba medaļa", color: "bg-slate-100 text-slate-700 ring-slate-400" },
+  3: { label: "Bronzas medaļa", color: "bg-orange-100 text-orange-900 ring-orange-400" },
+};
+
+function ResultPlace({ placement, status }: Pick<PublicData["results"][number], "placement" | "status">) {
+  if (status !== "ranked") return status.toUpperCase();
+  const medal = placement === null ? undefined : podiumMedals[placement];
+  if (!medal) return placement;
+
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <span>{placement}</span>
+      <span className={`inline-flex size-7 items-center justify-center rounded-full ring-1 ring-inset ${medal.color}`}>
+        <Medal className="size-4" aria-hidden="true" />
+        <span className="sr-only">{medal.label}</span>
+      </span>
+    </span>
+  );
+}
+
 function ResultTable({
   title,
   rows,
@@ -486,9 +508,7 @@ function ResultTable({
             {display.map((row) => (
               <tr key={row.id}>
                 <td className="text-lg font-black">
-                  {row.status === "ranked"
-                    ? row.placement
-                    : row.status.toUpperCase()}
+                  <ResultPlace placement={row.placement} status={row.status} />
                 </td>
                 <td className="font-bold">
                   {team
