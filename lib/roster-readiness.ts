@@ -24,30 +24,57 @@ export function rosterReadiness(participantCount: number, leaderCount: number, s
 
 export type RosterReadiness = ReturnType<typeof rosterReadiness>;
 
-export function teamMinimumIssues(
+export function teamRosterIssues(
   registrations: { participantId: number; categoryId: number; teamName: string | null }[],
-  activeParticipantIds: Set<number>,
-  sports: { mode: string; name: string; categories: { id: number; name: string; teamMin: number; active?: boolean }[] }[],
+  activeParticipants: { id: number; gender: string }[],
+  sports: { mode: string; name: string; categories: { id: number; name: string; teamMin: number; active?: boolean; requireMixedTeam?: boolean }[] }[],
 ) {
   const rules = new Map(sports.filter(sport => sport.mode === "team").flatMap(sport =>
     sport.categories.filter(category => category.active !== false).map(category => [category.id, { ...category, sportName: sport.name }] as const)));
-  const teams = new Map<string, { label: string; minimum: number; members: Set<number> }>();
+  const gendersById = new Map(activeParticipants.map(person => [person.id, person.gender]));
+  const teams = new Map<string, { label: string; minimum: number; mixed: boolean; members: Map<number, string> }>();
   for (const entry of registrations) {
     const rule = rules.get(entry.categoryId);
-    if (!rule || !activeParticipantIds.has(entry.participantId)) continue;
+    const gender = gendersById.get(entry.participantId);
+    if (!rule || gender === undefined) continue;
     const team = entry.teamName || "1. komanda";
     const key = JSON.stringify([entry.categoryId, team]);
-    const group = teams.get(key) ?? { label: `${rule.sportName} · ${rule.name} · ${team}`, minimum: rule.teamMin, members: new Set<number>() };
-    group.members.add(entry.participantId);
+    const group = teams.get(key) ?? { label: `${rule.sportName} · ${rule.name} · ${team}`, minimum: rule.teamMin, mixed: Boolean(rule.requireMixedTeam), members: new Map<number, string>() };
+    group.members.set(entry.participantId, gender);
     teams.set(key, group);
   }
-  return [...teams.values()].filter(team => team.members.size < team.minimum)
-    .map(team => `${team.label}: pieteikti ${team.members.size}, nepieciešami vismaz ${team.minimum} dalībnieki.`);
+  return [...teams.values()].flatMap(team => {
+    const issues = [];
+    if (team.members.size < team.minimum)
+      issues.push(`${team.label}: pieteikti ${team.members.size}, nepieciešami vismaz ${team.minimum} dalībnieki.`);
+    if (team.mixed) {
+      const genders = new Set(team.members.values());
+      if (!genders.has("F") || !genders.has("M"))
+        issues.push(`${team.label}: komandā jābūt vismaz vienai meitenei un vienam zēnam.`);
+    }
+    return issues;
+  });
+}
+
+export const categoryTeamLimitPrefix = "category_team_limit_";
+export const categoryMixedTeamPrefix = "category_mixed_team_";
+export const categoryTeamLimitKey = (categoryId: number) => `${categoryTeamLimitPrefix}${categoryId}`;
+export const categoryMixedTeamKey = (categoryId: number) => `${categoryMixedTeamPrefix}${categoryId}`;
+
+export function categoryTeamRules(categoryId: number, values: ReadonlyMap<string, string>) {
+  return {
+    totalTeamLimit: positiveTeamLimit(values.get(categoryTeamLimitKey(categoryId))),
+    requireMixedTeam: values.get(categoryMixedTeamKey(categoryId)) === "true",
+  };
 }
 
 export const sportTeamLimitKey = (sportId: number) => `sport_team_limit_${sportId}`;
 export function sportTeamLimit(code: string, value?: string) {
   if (value === undefined) return code === "discgolf" ? 15 : null;
+  return positiveTeamLimit(value);
+}
+
+function positiveTeamLimit(value?: string) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }

@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { withTransaction, type Transaction } from "@/db/transaction";
 import { categories, entries, leaders, participants, results, schools, settings, sports } from "@/db/schema";
-import { rosterReadiness, teamMinimumIssues, sportTeamLimit, sportTeamLimitKey } from "./roster-readiness";
+import { categoryMixedTeamKey, categoryTeamLimitKey, categoryTeamRules, rosterReadiness, teamRosterIssues, sportTeamLimit, sportTeamLimitKey } from "./roster-readiness";
 import { formatPersonName } from "./person-name";
 import { numberedTeam } from "./team-registration";
 
@@ -58,11 +58,11 @@ async function validateRegistrations(tx: Transaction, input: ParticipantInput, s
 }
 
 
-async function countSportTeams(tx: Transaction, sportId: number) {
+async function countTeams(tx: Transaction, sportId: number, categoryId?: number) {
   const [row] = await tx.select({ total: sql<number>`count(distinct (${entries.schoolId}, ${entries.categoryId}, coalesce(nullif(${entries.teamName}, ''), '1. komanda')))::int` })
     .from(entries).innerJoin(categories, eq(entries.categoryId, categories.id))
     .innerJoin(participants, eq(entries.participantId, participants.id))
-    .where(and(eq(categories.sportId, sportId), eq(categories.active, true), eq(participants.active, true)));
+    .where(and(eq(categories.sportId, sportId), categoryId === undefined ? undefined : eq(categories.id, categoryId), eq(categories.active, true), eq(participants.active, true)));
   return row.total;
 }
 
@@ -73,11 +73,25 @@ async function lockSportLimits(tx: Transaction, registrations: ParticipantInput[
   // Serialize registrations for each sport before reading capacity.
   const locked = await tx.select().from(sports)
     .where(and(inArray(sports.id, sportIds), eq(sports.mode, "team"))).orderBy(asc(sports.id)).for("update");
-  const limits = [];
+  if (!locked.length) return [];
+  const teamSportIds = new Set(locked.map(sport => sport.id));
+  const selectedGroups = selected.filter(category => teamSportIds.has(category.sportId));
+  const ruleRows = await tx.select().from(settings).where(inArray(settings.key, [
+    ...locked.map(sport => sportTeamLimitKey(sport.id)),
+    ...selectedGroups.map(category => categoryTeamLimitKey(category.id)),
+  ]));
+  const values = new Map(ruleRows.map(row => [row.key, row.value]));
+  const limits: { sportId: number; categoryId?: number; label: string; limit: number; before: number }[] = [];
   for (const sport of locked) {
-    const [setting] = await tx.select().from(settings).where(eq(settings.key, sportTeamLimitKey(sport.id)));
-    const limit = sportTeamLimit(sport.code, setting?.value);
-    if (limit !== null) limits.push({ sport, limit, before: await countSportTeams(tx, sport.id) });
+    const limit = sportTeamLimit(sport.code, values.get(sportTeamLimitKey(sport.id)));
+    if (limit !== null) limits.push({ sportId: sport.id, label: sport.name, limit, before: await countTeams(tx, sport.id) });
+    for (const category of selectedGroups.filter(group => group.sportId === sport.id)) {
+      const { totalTeamLimit } = categoryTeamRules(category.id, values);
+      if (totalTeamLimit !== null) limits.push({
+        sportId: sport.id, categoryId: category.id, label: `${sport.name} · ${category.name}`,
+        limit: totalTeamLimit, before: await countTeams(tx, sport.id, category.id),
+      });
+    }
   }
   return limits;
 }
@@ -125,9 +139,9 @@ async function saveParticipant(tx: Transaction, schoolId: number, data: Particip
       await tx.insert(entries).values({ schoolId, participantId, categoryId: registration.categoryId, teamName, siacNumber });
     }
   }
-  for (const { sport, limit, before } of limits) {
-    const after = await countSportTeams(tx, sport.id);
-    if (after > limit && after > before) throw new Error(`${sport.name}: sasniegts kopējais limits — ${limit} komandas. Jaunu komandu pievienot nevar.`);
+  for (const { sportId, categoryId, label, limit, before } of limits) {
+    const after = await countTeams(tx, sportId, categoryId);
+    if (after > limit && after > before) throw new Error(`${label}: sasniegts kopējais limits — ${limit} komandas. Jaunu komandu pievienot nevar.`);
   }
   return { ok: true, participantId };
 }
@@ -157,16 +171,20 @@ export async function mutateSchoolRoster(schoolId: number, action: string, paylo
     if (!school || school.status !== "approved") throw new Error("Skolas pieteikums nav apstiprināts.");
 
     if (action === "submit-roster") {
-      const people = await tx.select({ id: participants.id }).from(participants)
+      const people = await tx.select({ id: participants.id, gender: participants.gender }).from(participants)
         .where(and(eq(participants.schoolId, schoolId), eq(participants.active, true)));
       const teamLeaders = await tx.select({ id: leaders.id }).from(leaders).where(eq(leaders.schoolId, schoolId));
       const registrations = await tx.select().from(entries).where(eq(entries.schoolId, schoolId));
       const categoryIds = [...new Set(registrations.map(entry => entry.categoryId))];
       const usedCategories = categoryIds.length ? await tx.select().from(categories).where(inArray(categories.id, categoryIds)) : [];
       const sportIds = [...new Set(usedCategories.map(category => category.sportId))];
-      const usedSports = sportIds.length ? await tx.select().from(sports).where(inArray(sports.id, sportIds)) : [];
-      const teamIssues = teamMinimumIssues(registrations, new Set(people.map(person => person.id)), usedSports.map(sport => ({
-        ...sport, categories: usedCategories.filter(category => category.sportId === sport.id),
+      const usedSports = sportIds.length ? await tx.select().from(sports).where(inArray(sports.id, sportIds)).orderBy(asc(sports.id)).for("share") : [];
+      const ruleRows = categoryIds.length ? await tx.select().from(settings)
+        .where(inArray(settings.key, categoryIds.map(categoryMixedTeamKey))) : [];
+      const values = new Map(ruleRows.map(row => [row.key, row.value]));
+      const teamIssues = teamRosterIssues(registrations, people, usedSports.map(sport => ({
+        ...sport, categories: usedCategories.filter(category => category.sportId === sport.id)
+          .map(category => ({ ...category, ...categoryTeamRules(category.id, values) })),
       })));
       const registered = new Set(registrations.map(entry => entry.participantId));
       const readiness = rosterReadiness(people.length, teamLeaders.length, school.rosterSubmittedAt,

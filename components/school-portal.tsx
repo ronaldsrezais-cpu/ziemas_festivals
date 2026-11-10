@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Category = { id: number; name: string; discipline: string; gender: "F" | "M" | "X"; minBirthYear: number; maxBirthYear: number; teamMin: number; teamMax: number; schoolLimit: number | null };
+type Category = { id: number; name: string; discipline: string; gender: "F" | "M" | "X"; minBirthYear: number; maxBirthYear: number; teamMin: number; teamMax: number; schoolLimit: number | null; totalTeamLimit: number | null; requireMixedTeam: boolean };
 type Sport = { id: number; code: string; name: string; mode: "individual" | "team"; categories: Category[] };
 type PortalData = {
   school: { id: number; name: string; municipality: string; teacherName: string; teacherRole: string; email: string; phone: string; rosterRevision: number };
@@ -166,6 +166,10 @@ function ParticipantForm({ sports, entries, onSave, participant, registrations }
         </div>
         <Button type="button" variant="ghost" size="icon" aria-label={`Noņemt ${index + 1}. sporta pieteikumu`} className="self-end text-red-700" disabled={rows.length === 1} onClick={() => setRows(values => values.filter((_, i) => i !== index))}><Trash2 /></Button>
         {sport?.code === "winter-orienteering" && <label className="form-label sm:col-span-2">SIAC numurs (neobligāts)<input className="form-control" inputMode="numeric" maxLength={40} value={row.siacNumber ?? ""} onChange={e => updateRow(index, { siacNumber: e.target.value })} placeholder="Dalībnieka SIAC numurs" /><span className="text-xs font-normal text-muted-foreground">Ja numurs nav zināms, lauku var atstāt tukšu.</span></label>}
+        {sport?.mode === "team" && selected && (selected.requireMixedTeam || selected.totalTeamLimit !== null) && <div className="text-xs text-muted-foreground sm:col-span-2">
+          {selected.requireMixedTeam && <p>Komandā jābūt vismaz vienai meitenei un vienam zēnam.</p>}
+          {selected.totalTeamLimit !== null && <p>Komandu limits grupā (visām skolām kopā): {selected.totalTeamLimit}.</p>}
+        </div>}
         {sport?.mode === "team" && selected && selected.schoolLimit !== 1 && <label className="form-label sm:col-span-2">Komanda (skolas ietvaros)<select className="form-control" value={row.teamNumber || "1"} onChange={e => updateRow(index, { teamNumber: e.target.value })}>{Array.from({ length: Math.min(selected.schoolLimit ?? names.length + 1, names.length + 1) }, (_, i) => <option key={i + 1} value={i + 1}>{names[i] ?? numberedTeam(names.map(teamName => ({ teamName })), i + 1)}</option>)}</select><span className="text-xs font-normal">Komandas nosaukums nav jāievada.</span></label>}
       </div>;
     })}</div>

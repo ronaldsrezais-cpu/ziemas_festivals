@@ -18,7 +18,7 @@ beforeEach(async () => {
   await resetEmailState();
   state.schools[0].rosterSubmittedAt = null;
   state.settings = [{ key: 'roster_editing_open', value: 'true' }];
-  state.participants = Array.from({ length: 11 }, (_, index) => ({ id: index + 1, schoolId: 1, active: true }));
+  state.participants = Array.from({ length: 11 }, (_, index) => ({ id: index + 1, schoolId: 1, active: true, gender: 'M' }));
   state.entries = state.participants.map(person => ({ id: person.id, schoolId: 1, participantId: person.id, categoryId: 1 }));
   state.leaders = [{ id: 1, schoolId: 1 }];
 });
@@ -51,6 +51,20 @@ test('completion is blocked for an undersized team until that same team reaches 
   await assert.rejects(mutateSchoolRoster(1, 'submit-roster', {}), /Disku golfs.*pieteikti 2, nepieciešami vismaz 3/);
   assert.equal(state.schools[0].rosterSubmittedAt, null);
   state.entries[2] = { ...state.entries[2], categoryId: 2, teamName: '1. komanda' };
+  await mutateSchoolRoster(1, 'submit-roster', {});
+  assert.ok(state.schools[0].rosterSubmittedAt);
+});
+
+test('mixed team approval requires both genders on the same team', async () => {
+  state.leaders.push({ id: 2, schoolId: 1 });
+  state.sports = [{ id: 1, mode: 'team', name: 'Sniega volejbols' }];
+  state.categories = [{ id: 2, sportId: 1, name: '1. grupa', teamMin: 2, active: true }];
+  state.settings.push({ key: 'category_mixed_team_2', value: 'true' });
+  state.entries[0] = { ...state.entries[0], categoryId: 2, teamName: '1. komanda' };
+  state.entries[1] = { ...state.entries[1], categoryId: 2, teamName: '1. komanda' };
+  state.participants[2].gender = 'F';
+  await assert.rejects(mutateSchoolRoster(1, 'submit-roster', {}), /1. komanda.*vismaz vienai meitenei un vienam zēnam/);
+  state.participants[1].gender = 'F';
   await mutateSchoolRoster(1, 'submit-roster', {});
   assert.ok(state.schools[0].rosterSubmittedAt);
 });

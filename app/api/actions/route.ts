@@ -1,6 +1,6 @@
 import { resultTeamName } from "@/lib/team-results";
 import { withTransaction } from "@/db/transaction";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, or } from "drizzle-orm";
 import { z } from "zod";
 import { municipalityOptions } from "@/lib/municipalities";
 import { getDb } from "@/db";
@@ -26,7 +26,7 @@ import { approveSchool, resendApprovalEmail } from "@/lib/email";
 import { mutateSchoolRoster } from "@/lib/school-roster";
 import { renameSchool, schoolNameSchema, SchoolNameError } from "@/lib/school-profile";
 import { judgePasswordSchema } from "@/lib/judge-access";
-import { rosterReadiness, teamMinimumIssues, sportTeamLimit, sportTeamLimitKey } from "@/lib/roster-readiness";
+import { categoryMixedTeamKey, categoryMixedTeamPrefix, categoryTeamLimitKey, categoryTeamLimitPrefix, categoryTeamRules, rosterReadiness, teamRosterIssues, sportTeamLimit, sportTeamLimitKey } from "@/lib/roster-readiness";
 import { runtimeEnv } from "@/lib/runtime";
 import {
   accessCodeHash,
@@ -175,7 +175,7 @@ async function schoolView(schoolId: number) {
     .where(eq(schools.id, schoolId))
     .limit(1);
   if (!school) throw new Error("Skola nav atrasta.");
-  const [leaderRows, participantRows, entryRows, sportRows, editingRows, documentRows] = await Promise.all(
+  const [leaderRows, participantRows, entryRows, baseSports, rosterSettings, documentRows] = await Promise.all(
     [
       db
         .select()
@@ -198,10 +198,18 @@ async function schoolView(schoolId: number) {
         .where(eq(entries.schoolId, schoolId))
         .orderBy(asc(entries.id)),
       getSportsWithCategories(),
-      db.select().from(settings).where(eq(settings.key, "roster_editing_open")),
+      db.select().from(settings).where(or(
+        eq(settings.key, "roster_editing_open"),
+        like(settings.key, `${categoryMixedTeamPrefix}%`),
+        like(settings.key, `${categoryTeamLimitPrefix}%`),
+      )),
       db.select().from(safetyDocuments).where(eq(safetyDocuments.schoolId, schoolId)),
     ],
   );
+  const settingValues = new Map(rosterSettings.map(row => [row.key, row.value]));
+  const sportRows = baseSports.map(sport => ({ ...sport,
+    categories: sport.categories.map(category => ({ ...category, ...categoryTeamRules(category.id, settingValues) })),
+  }));
   return {
     school: { ...school, accessCodeHash: undefined },
     safetyDocument: documentRows[0] ? { id: documentRows[0].id, fileName: documentRows[0].fileName, createdAt: documentRows[0].createdAt, status: safetyStatus(documentRows[0], school.rosterRevision) } : null,
@@ -210,10 +218,10 @@ async function schoolView(schoolId: number) {
     entries: entryRows,
     sports: sportRows,
     requiredLeaders: requiredLeaders(participantRows.length),
-    rosterEditable: editingRows[0]?.value !== "false" && school.status === "approved",
+    rosterEditable: settingValues.get("roster_editing_open") !== "false" && school.status === "approved",
     readiness: rosterReadiness(participantRows.length, leaderRows.length, school.rosterSubmittedAt,
       participantRows.filter(person => !entryRows.some(entry => entry.participantId === person.id)).length,
-      teamMinimumIssues(entryRows, new Set(participantRows.map(person => person.id)), sportRows)),
+      teamRosterIssues(entryRows, participantRows, sportRows)),
   };
 }
 
@@ -272,7 +280,11 @@ async function adminView() {
   const codeBodies = new Map(codeMessages.map((message) => [message.schoolId, message.body]));
   const schoolById = new Map(schoolRows.map((school) => [school.id, school]));
   const registeredIds = new Set(entryRows.map(entry => entry.participantId));
-  const sportsWithCategories = sportRows.map(sport => ({ ...sport, categories: categoryRows.filter(category => category.sportId === sport.id) }));
+  const settingValues = new Map(settingRows.map(row => [row.key, row.value]));
+  const sportsWithCategories = sportRows.map(sport => ({ ...sport,
+    categories: categoryRows.filter(category => category.sportId === sport.id)
+      .map(category => ({ ...category, ...categoryTeamRules(category.id, settingValues) })),
+  }));
   const adminSchools = await Promise.all(schoolRows.map(async (school) => {
     const { accessCodeHash: currentHash, ...details } = school;
     return {
@@ -291,7 +303,7 @@ async function adminView() {
         leaderRows.filter(leader => leader.schoolId === school.id).length,
         school.rosterSubmittedAt,
         participantRows.filter(person => person.schoolId === school.id && !registeredIds.has(person.id)).length,
-        teamMinimumIssues(entryRows.filter(entry => entry.schoolId === school.id), new Set(participantRows.filter(person => person.schoolId === school.id).map(person => person.id)), sportsWithCategories),
+        teamRosterIssues(entryRows.filter(entry => entry.schoolId === school.id), participantRows.filter(person => person.schoolId === school.id), sportsWithCategories),
       ),
     };
   }));
@@ -312,7 +324,7 @@ async function adminView() {
       };
     }).sort((a, b) => a.schoolName.localeCompare(b.schoolName, "lv") || a.fullName.localeCompare(b.fullName, "lv")),
     sports: sportsWithCategories.map(sport => ({
-      ...sport, totalTeamLimit: sportTeamLimit(sport.code, settingRows.find(row => row.key === sportTeamLimitKey(sport.id))?.value),
+      ...sport, totalTeamLimit: sportTeamLimit(sport.code, settingValues.get(sportTeamLimitKey(sport.id))),
     })),
     judges: judgeRows,
     outbox: codeMessages.map(mail => ({
@@ -697,6 +709,8 @@ export async function POST(request: Request) {
           teamMin: z.number().int().min(1),
           teamMax: z.number().int().min(1),
           schoolLimit: z.number().int().positive().nullable().optional(),
+          totalTeamLimit: z.number().int().min(1).max(10000).nullable().optional(),
+          requireMixedTeam: z.boolean().optional(),
           active: z.boolean().optional(),
         })
         .refine(
@@ -708,19 +722,38 @@ export async function POST(request: Request) {
           "Komandas dalībnieku intervāls nav pareizs.",
         )
         .parse(payload);
-      if (action === "update-category" && data.id) {
-        const { id, ...changes } = data;
-        await db.update(categories).set(changes).where(eq(categories.id, id));
-      } else {
-        const sortOrder =
-          (
-            await db
-              .select({ id: categories.id })
-              .from(categories)
-              .where(eq(categories.sportId, data.sportId))
-          ).length + 1;
-        await db.insert(categories).values({ ...data, sortOrder });
-      }
+      await withTransaction(async tx => {
+        const { id, totalTeamLimit, requireMixedTeam, ...changes } = data;
+        const [sport] = await tx.select().from(sports).where(eq(sports.id, data.sportId)).for("update");
+        if (!sport) throw new Error("Sporta veids nav atrasts.");
+        if (sport.mode !== "team" && (requireMixedTeam || totalTeamLimit))
+          throw new Error("Šos iestatījumus var norādīt tikai komandu sporta veidam.");
+        let categoryId: number;
+        if (action === "update-category") {
+          if (!id) throw new Error("Kategorija nav atrasta.");
+          const [updated] = await tx.update(categories).set(changes)
+            .where(and(eq(categories.id, id), eq(categories.sportId, sport.id))).returning({ id: categories.id });
+          if (!updated) throw new Error("Kategorija nav atrasta.");
+          categoryId = updated.id;
+        } else {
+          const existing = await tx.select({ id: categories.id }).from(categories).where(eq(categories.sportId, sport.id));
+          const [created] = await tx.insert(categories).values({ ...changes, sortOrder: existing.length + 1 }).returning({ id: categories.id });
+          categoryId = created.id;
+        }
+        if (sport.mode !== "team") return;
+        const [mixedSetting] = await tx.select().from(settings).where(eq(settings.key, categoryMixedTeamKey(categoryId)));
+        if ((requireMixedTeam ?? (mixedSetting?.value === "true")) && (data.gender !== "X" || data.teamMax < 2))
+          throw new Error("Abu dzimumu pārstāvību var prasīt tikai jauktā grupā, kur komandā drīkst būt vismaz divi dalībnieki.");
+        const rules = [
+          [categoryTeamLimitKey(categoryId), totalTeamLimit === undefined ? undefined : totalTeamLimit === null ? "" : String(totalTeamLimit)],
+          [categoryMixedTeamKey(categoryId), requireMixedTeam === undefined ? undefined : String(requireMixedTeam)],
+        ] as const;
+        for (const [key, value] of rules) {
+          if (value === undefined) continue;
+          await tx.insert(settings).values({ key, value })
+            .onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date().toISOString() } });
+        }
+      });
       return Response.json({ ok: true });
     }
 

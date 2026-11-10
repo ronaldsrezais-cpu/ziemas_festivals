@@ -47,6 +47,8 @@ type Category = {
   teamMin: number;
   teamMax: number;
   schoolLimit: number | null;
+  totalTeamLimit: number | null;
+  requireMixedTeam: boolean;
   active: boolean;
 };
 type Sport = {
@@ -499,6 +501,7 @@ function SportsSection({
                   <th>Dzimšanas gadi</th>
                   <th>Dalībnieki</th>
                   <th>Limits skolai</th>
+                  {sport.mode === "team" && <th>Limits grupai</th>}
                   <th></th>
                 </tr>
               </thead>
@@ -517,6 +520,7 @@ function SportsSection({
                         : category.gender === "F"
                           ? "Meitenes / jaunietes"
                           : "Zēni / jaunieši"}
+                      {category.requireMixedTeam && <div className="text-xs text-muted-foreground">Jābūt meitenei un zēnam</div>}
                     </td>
                     <td>
                       {category.minBirthYear}–{category.maxBirthYear}
@@ -527,6 +531,7 @@ function SportsSection({
                         : `${category.teamMin}–${category.teamMax}`}
                     </td>
                     <td>{category.schoolLimit ?? "—"}</td>
+                    {sport.mode === "team" && <td>{category.totalTeamLimit ?? "—"}</td>}
                     <td>
                       <Dialog>
                         <DialogTrigger asChild>
@@ -591,6 +596,10 @@ function CategoryForm({
         teamMin: Number(values.teamMin),
         teamMax: Number(values.teamMax),
         schoolLimit: values.schoolLimit ? Number(values.schoolLimit) : null,
+        ...(sport.mode === "team" ? {
+          totalTeamLimit: values.totalTeamLimit ? Number(values.totalTeamLimit) : null,
+          requireMixedTeam: values.requireMixedTeam === "on",
+        } : {}),
         active: true,
       });
       setSaved(true);
@@ -694,6 +703,19 @@ function CategoryForm({
           defaultValue={category?.schoolLimit ?? ""}
         />
       </label>
+      {sport.mode === "team" && <>
+        <label className="form-label">
+          Komandu limits grupā
+          <input className="form-control" type="number" min={1} max={10000} name="totalTeamLimit" defaultValue={category?.totalTeamLimit ?? ""} placeholder="Bez limita" />
+          <span className="text-xs font-normal text-muted-foreground">Visām skolām kopā. Tukšs lauks nozīmē, ka grupai limita nav.</span>
+        </label>
+        <label className="flex items-start gap-2 text-sm font-semibold sm:col-span-2">
+          <input className="mt-1" type="checkbox" name="requireMixedTeam" defaultChecked={category?.requireMixedTeam ?? false} />
+          <span>Komandā jābūt vismaz vienai meitenei un vienam zēnam
+            <span className="block text-xs font-normal text-muted-foreground">Jauktai grupai. Prasību pārbauda, kad skola apstiprina sastāvu.</span>
+          </span>
+        </label>
+      </>}
       {error && (
         <p className="rounded-xl bg-red-50 p-3 font-bold text-red-800 sm:col-span-2">
           {error}
