@@ -4,7 +4,7 @@ import { resultTeamName, uniqueTeamResults } from "@/lib/team-results";
 import { sharedMedalPlaces } from "@/lib/medal-ranking";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Filter, Info, Medal, School, Trophy, Users } from "lucide-react";
+import { Download, Filter, Info, Medal, School, Users } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FestivalHero } from "@/components/festival-hero";
@@ -174,14 +174,14 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
           </div>
         )}
         {!data ? (
-          <div className="grid gap-4 md:grid-cols-3">
-            {[1, 2, 3].map((item) => (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[1, 2].map((item) => (
               <Skeleton key={item} className="h-32 rounded-xl" />
             ))}
           </div>
         ) : (
           <>
-            <section className="mb-8 grid gap-4 sm:grid-cols-3">
+            <section className="mb-8 grid gap-4 sm:grid-cols-2">
               <Stat
                 icon={<School />}
                 label="Apstiprinātas skolas"
@@ -191,11 +191,6 @@ export function PublicDashboard({ configured = true }: { configured?: boolean })
                 icon={<Users />}
                 label="Reģistrēti dalībnieki"
                 value={!configured || error ? "—" : data.participantCount}
-              />
-              <Stat
-                icon={<Trophy />}
-                label="Publicēti rezultāti"
-                value={!configured || error ? "—" : data.results.length}
               />
             </section>
             <section className="glass-panel mb-8 rounded-xl p-5 sm:p-6">
