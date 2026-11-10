@@ -712,7 +712,7 @@ function ImportResults({
         });
         savedCount++;
       }
-      await finished(`Fails pievienots. Saglabātas rezultātu rindas: ${savedCount}. Pārbaudiet vietas un nospiediet “Publicēt rezultātus”.`);
+      await finished(`Fails un rezultāti saglabāti. Saglabāto rindu skaits: ${savedCount}. Lai rezultāti būtu redzami publiskajā lapā, nospiediet “Publicēt rezultātus”.`);
       setPreview([]);
       setExtractedText("");
       setFile(null);
@@ -774,6 +774,9 @@ function ImportResults({
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 font-bold text-red-800">{error}</p>}
       <section className="glass-panel rounded-3xl p-6">
         <h2 className="text-xl font-black">1. Izvēlieties un nolasiet failu</h2>
+        <p className="mt-3 rounded-xl bg-[#e9ecff] p-3 text-sm">
+          Vispirms nospiediet <strong>“Saglabāt failu un rezultātus”</strong>. Pēc saglabāšanas atvērsies rezultātu tabula, kur varēsiet nospiest <strong>“Publicēt rezultātus”</strong>.
+        </p>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#65647b]">
           Atbalstīti PDF, Excel, CSV un teksta faili līdz 12 MB.{" "}
           {isTeamSport
@@ -837,23 +840,18 @@ function ImportResults({
             <div>
               <h3 className="text-lg font-black">2. Pārbaudiet un saglabājiet rezultātus</h3>
               <p className="text-sm text-[#65647b]">
-                Priekšskatījums vēl nav saglabāts. Pārbaudiet automātiski atzīmētās rindas. Ja vieta nav nolasīta, ievadiet to un atzīmējiet rindu.
+                Pārbaudiet atlasītās rindas un nospiediet “Saglabāt failu un rezultātus”. Ja kāda vieta nav nolasīta, ievadiet to un atzīmējiet attiecīgo rindu.
               </p>
               <p className="mt-2 text-sm font-bold" role="status">
                 {readyCount ? `Saglabāšanai atlasītas rindas: ${readyCount}.` : "Saglabāšanai nav atlasītu rindu ar vietu vai statusu."}
               </p>
-              <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-                <input type="checkbox" checked={preview.some(hasResult) && preview.filter(hasResult).every(row => row.matched)} disabled={disabled || !preview.some(hasResult)}
-                  onChange={event => setPreview(rows => rows.map(row => ({ ...row, matched: event.target.checked && hasResult(row) })))} />
-                Iekļaut visas aizpildītās rindas
-              </label>
             </div>
             <Button
               onClick={importRows}
               disabled={disabled || !preview.some(readyToSave)}
               className="bg-emerald-700 hover:bg-emerald-800"
             >
-              <Upload /> Saglabāt un pievienot failu
+              <Upload /> Saglabāt failu un rezultātus
             </Button>
           </div>
           {isTeamSport ? data.categories.flatMap(category => {
