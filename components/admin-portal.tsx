@@ -351,16 +351,23 @@ function SchoolsTable({
   return (
     <div className="glass-panel overflow-hidden rounded-3xl">
       <p className="border-b px-5 py-3 text-sm text-muted-foreground">Drošības lapas ailē redzama elektroniskā iesniegšana. Parakstīto lapu var iesniegt arī klātienē; augšupielāde nav obligāta pieteikuma pabeigšanai.</p>
-      <div className="grid gap-4 bg-[#f7f7fc] p-3 sm:p-5">
+      <div className="divide-y">
             {data.schools.map((school) => (
-              <article key={school.id} aria-label={school.name} className="grid min-w-0 gap-4 rounded-2xl border bg-white p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
-                <div className="min-w-0 [overflow-wrap:anywhere] border-b pb-3 sm:col-span-2 xl:col-span-3"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Skola</p>
-                  <strong>{school.name}</strong>
-                  <div className="text-xs text-[#65647b]">
-                    {school.municipality}
-                  </div>
-                  <div className="mt-2"><SchoolNameEditor name={school.name} onSave={(name, previousName) => rename(school.id, name, previousName)} /></div>
-                </div>
+              <details key={school.id} className="group bg-white">
+                <summary className="flex min-w-0 cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-[#f7f7fc] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+                  <span aria-hidden="true" className="shrink-0 text-primary transition-transform group-open:rotate-90">▸</span>
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      <strong className="block">{school.name}</strong>
+                      <span className="block text-xs text-muted-foreground">{school.municipality}</span>
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="text-xs text-muted-foreground">{school.participantCount} dalībnieki · {school.leaderCount} vadītāji</span>
+                      <Status value={school.status} />
+                    </span>
+                  </span>
+                </summary>
+                <div className="grid min-w-0 gap-4 border-t bg-[#f7f7fc] p-4 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Kontaktpersona</p>
                   {school.teacherName}
                   <div className="text-xs text-[#65647b]">
@@ -370,9 +377,6 @@ function SchoolsTable({
                     <br />
                     {school.phone}
                   </div>
-                </div>
-                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Dalībnieki / vadītāji</p>
-                  {school.participantCount} / {school.leaderCount}
                 </div>
                 <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Komandas pieteikums</p>
                   <strong className={school.readiness.submitted ? "text-emerald-800" : "text-amber-900"}>
@@ -384,14 +388,12 @@ function SchoolsTable({
                   <strong className={school.safetyDocument?.status === "submitted" ? "text-emerald-800" : school.safetyDocument ? "text-amber-900" : "text-muted-foreground"}>{school.safetyDocument?.status === "submitted" ? "Iesniegta elektroniski" : school.safetyDocument ? "Iesniegta elektroniski — skolas dati vai sastāvs mainīts" : "Elektroniski nav iesniegta"}</strong>
                   {school.safetyDocument && <><a className="mt-1 block break-all text-xs text-primary underline" href={`/api/safety-documents/${school.safetyDocument.id}`}>{school.safetyDocument.fileName}</a><span className="text-xs text-muted-foreground">{new Date(school.safetyDocument.createdAt).toLocaleString("lv-LV")}</span></>}
                 </div>
-                <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Statuss</p>
-                  <Status value={school.status} />
-                </div>
                 <div className="min-w-0 [overflow-wrap:anywhere]"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Piekļuves kods</p>
                   {school.accessCode ? <code className="select-all whitespace-nowrap rounded bg-slate-100 px-2 py-1 text-base font-bold tracking-wider">{school.accessCode}</code> : <span className="text-xs text-muted-foreground">{school.status === "approved" ? "Kods nav pieejams" : "Pēc apstiprināšanas"}</span>}
                 </div>
                 <div className="min-w-0 [overflow-wrap:anywhere] border-t pt-3 sm:col-span-2 xl:col-span-3"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-[#65647b]">Darbības</p>
-                  <div className="flex flex-wrap justify-start gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SchoolNameEditor name={school.name} onSave={(name, previousName) => rename(school.id, name, previousName)} />
                     <Button size="sm" variant="outline" className="text-red-700" onClick={() => remove(school)} aria-label={`Dzēst skolas pieteikumu: ${school.name}`}><Trash2 /> Dzēst</Button>
                     {school.status !== "approved" && (
                       <Button
@@ -414,7 +416,8 @@ function SchoolsTable({
                     )}
                   </div>
                 </div>
-              </article>
+                </div>
+              </details>
             ))}
       </div>
       {data.schools.length === 0 && (
