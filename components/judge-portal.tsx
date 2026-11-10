@@ -54,7 +54,7 @@ type Result = {
   updatedAt: string;
 };
 type JudgeData = {
-  judge: { id: number; fullName: string; sportId: number; sportName: string };
+  judge: { id: number; fullName: string; sportId: number; sportName: string; sportMode: "individual" | "team" };
   categories: Category[];
   entries: Entry[];
   results: Result[];
@@ -345,6 +345,38 @@ function ManualResults({
 }) {
   const [discipline, setDiscipline] = useState("");
   const disciplines = [...new Set(data.categories.map(category => category.discipline))];
+  const resultsByEntry = new Map(data.results.map(result => [result.entryId, result]));
+  const entriesByCategory = new Map<number, Entry[]>();
+  for (const entry of data.entries) {
+    const rows = entriesByCategory.get(entry.categoryId) ?? [];
+    rows.push(entry);
+    entriesByCategory.set(entry.categoryId, rows);
+  }
+  function renderRows(categoryId: number) {
+    const rows = [...(entriesByCategory.get(categoryId) ?? [])].sort((a, b) =>
+      (resultsByEntry.get(a.entryId)?.placement ?? Infinity) - (resultsByEntry.get(b.entryId)?.placement ?? Infinity) ||
+      `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "lv"));
+    const renderRow = (entry: Entry) => {
+      const result = resultsByEntry.get(entry.entryId);
+      return <ManualRow key={`${entry.entryId}:${result?.updatedAt ?? "new"}`} entry={entry} result={result}
+        save={save} remove={remove} />;
+    };
+    if (data.judge.sportMode !== "team") return <tbody>{rows.map(renderRow)}</tbody>;
+    const teams = new Map<string, { school: string; name: string; members: Entry[] }>();
+    for (const entry of rows) {
+      const name = entry.teamName?.trim() || "1. komanda";
+      const key = JSON.stringify([entry.schoolId, name]);
+      const team = teams.get(key) ?? { school: entry.schoolName, name, members: [] };
+      team.members.push(entry);
+      teams.set(key, team);
+    }
+    return [...teams].map(([key, team]) => <tbody key={key}>
+      <tr><th scope="rowgroup" colSpan={5} className="border-t bg-[#e9ecff] text-left">
+        {team.school} · {team.name} <span className="ml-2 text-xs font-normal text-muted-foreground">Dalībnieku skaits: {team.members.length}</span>
+      </th></tr>
+      {team.members.map(renderRow)}
+    </tbody>);
+  }
   return (
     <div className="grid gap-6">
       <label className="form-label max-w-md">Disciplīna<select className="form-control" value={discipline} onChange={event => setDiscipline(event.target.value)}><option value="">Visas disciplīnas</option>{disciplines.map(name => <option key={name}>{name}</option>)}</select></label>
@@ -366,33 +398,14 @@ function ManualResults({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Dalībnieks / komanda</th>
+                  <th>Dalībnieks</th>
                   <th>Skola</th>
                   <th>Vieta</th>
                   <th>Statuss</th>
                   <th></th>
                 </tr>
               </thead>
-              <tbody>
-                {data.entries
-                  .filter((entry) => entry.categoryId === category.id)
-                  .sort((a, b) => {
-                    const first = data.results.find(result => result.entryId === a.entryId);
-                    const second = data.results.find(result => result.entryId === b.entryId);
-                    return (first?.placement ?? Infinity) - (second?.placement ?? Infinity) || `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "lv");
-                  })
-                  .map((entry) => (
-                    <ManualRow
-                      key={`${entry.entryId}:${data.results.find(result => result.entryId === entry.entryId)?.updatedAt ?? "new"}`}
-                      entry={entry}
-                      result={data.results.find(
-                        (result) => result.entryId === entry.entryId,
-                      )}
-                      save={save}
-                      remove={remove}
-                    />
-                  ))}
-              </tbody>
+              {renderRows(category.id)}
             </table>
           </div>
           {!data.entries.some((entry) => entry.categoryId === category.id) && (
@@ -438,16 +451,7 @@ function ManualRow({
   }
   return (
     <tr>
-      <td>
-        <strong>
-          {entry.teamName ?? `${entry.firstName} ${entry.lastName}`}
-        </strong>
-        {entry.teamName && (
-          <div className="text-xs text-[#65647b]">
-            {entry.firstName} {entry.lastName}
-          </div>
-        )}
-      </td>
+      <td><strong>{entry.firstName} {entry.lastName}</strong></td>
       <td>{entry.schoolName}<p className="mt-1 text-xs text-muted-foreground">{result ? result.published ? "Rezultāts publicēts" : "Rezultāts saglabāts" : "Rezultāts nav ievadīts"}</p></td>
       <td>
         <input

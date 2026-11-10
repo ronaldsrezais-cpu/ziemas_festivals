@@ -380,6 +380,7 @@ async function judgeView(judgeId: number) {
       fullName: judges.fullName,
       sportId: judges.sportId,
       sportName: sports.name,
+      sportMode: sports.mode,
     })
     .from(judges)
     .innerJoin(sports, eq(judges.sportId, sports.id))
