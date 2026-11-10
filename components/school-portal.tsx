@@ -53,7 +53,7 @@ export function SchoolPortal() {
   function showError(reason: unknown) { setError(reason instanceof Error ? reason.message : "Neizdevās saglabāt."); }
   async function submitRoster() {
     setSubmitting(true); setNotice("");
-    try { await action({ action: "submit-roster" }); setNotice("Komandas pieteikums ir pabeigts."); }
+    try { await action({ action: "submit-roster" }); setNotice("Komandas sastāvs ir apstiprināts."); }
     catch (reason) { showError(reason); }
     finally { setSubmitting(false); }
   }
@@ -63,25 +63,31 @@ export function SchoolPortal() {
     <div className="flex flex-wrap items-start justify-between gap-4"><PageHeading eyebrow={data.school.municipality} title={data.school.name}/><div className="flex flex-wrap items-center gap-2"><SchoolNameEditor name={data.school.name} onSave={async (name, previousName) => { await action({ action: "rename-school", name, previousName }); setNotice("Skolas nosaukums saglabāts."); }} /><Button variant="outline" onClick={logout}><LogOut/> Iziet</Button></div></div>
     {error && <p className="mb-5 rounded-2xl bg-red-50 p-4 font-bold text-red-800">{error}</p>}
     {notice && <p role="status" className="mb-5 rounded-2xl bg-emerald-50 p-4 font-bold text-emerald-900">{notice}</p>}
-    {!data.rosterEditable && <p className="mb-5 rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">Komandas sastāva pievienošana un labošana ir slēgta. Saglabātie dalībnieki paliek reģistrēti; nepabeigts pieteikums netiek automātiski pabeigts. Ja pieteikums nav pabeigts vai vajadzīgas izmaiņas, sazinieties ar organizatoru.</p>}
+    {!data.rosterEditable && <p className="mb-5 rounded-2xl bg-amber-50 p-4 font-bold text-amber-900">Komandas sastāva pievienošana un labošana ir slēgta. Saglabātie dalībnieki paliek reģistrēti. Ja sastāvs nav apstiprināts vai vajadzīgas izmaiņas, sazinieties ar organizatoru.</p>}
     <section className={`mb-6 flex flex-wrap items-start justify-between gap-5 rounded-2xl border-2 p-6 ${data.readiness.submitted ? "border-emerald-300 bg-emerald-50" : "border-[#2910bf] bg-[#e9ecff]"}`}>
       <div>
-        <h2 className="text-xl font-black">Komandas pieteikums: {data.readiness.submitted ? "pabeigts" : "nav pabeigts"}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Katrs saglabātais dalībnieks jau ir reģistrēts. Ar pogu “Pabeigt pieteikumu” apstipriniet, ka sastāvs ir gatavs. Pēc izmaiņām tas jāapstiprina vēlreiz.</p>
+        <h2 className="text-xl font-black">Komandas sastāvs: {data.readiness.submitted ? "apstiprināts" : "nav apstiprināts"}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Katrs saglabātais dalībnieks jau ir reģistrēts. Ar pogu “Apstiprināt komandas sastāvu” apstipriniet, ka sastāvs ir gatavs. Pēc izmaiņām tas jāapstiprina vēlreiz.</p>
         {data.readiness.issues.length > 0 && <ul className="mt-2 list-inside list-disc text-sm text-amber-900">{data.readiness.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>}
-        {data.readiness.canSubmit && !data.readiness.submitted && <p className="mt-2 text-sm">Pārbaudiet ievadīto sastāvu un nospiediet “Pabeigt pieteikumu”.</p>}
+        {data.readiness.canSubmit && !data.readiness.submitted && <p className="mt-2 text-sm">Pārbaudiet ievadīto sastāvu un nospiediet “Apstiprināt komandas sastāvu”.</p>}
       </div>
-      <Button size="lg" className="min-h-14 w-full bg-[#2910bf] px-8 text-base font-black shadow-md sm:w-auto" onClick={submitRoster} disabled={!data.rosterEditable || !data.readiness.canSubmit || data.readiness.submitted || submitting}>
-        {submitting ? <Loader2 className="animate-spin" /> : <Save />} {data.readiness.submitted ? "Pieteikums pabeigts" : "Pabeigt pieteikumu"}
+      <Button size="lg" className="min-h-14 w-full max-w-full whitespace-normal bg-[#2910bf] px-4 text-base font-black shadow-md sm:w-auto sm:px-8" onClick={submitRoster} disabled={!data.rosterEditable || !data.readiness.canSubmit || data.readiness.submitted || submitting}>
+        {submitting ? <Loader2 className="animate-spin" /> : <Save />} {data.readiness.submitted ? "Sastāvs apstiprināts" : "Apstiprināt komandas sastāvu"}
       </Button>
     </section>
-    <section className="mb-7 grid gap-4 md:grid-cols-3">
+    <section className="mb-7 grid gap-4 sm:grid-cols-2">
       <Info label="Dalībnieki" value={data.participants.length} icon={<Users/>}/>
       <Info label="Komandas vadītāji" value={`${data.leaders.length} / ${data.requiredLeaders}`} icon={<UserRoundPlus/>} warning={data.leaders.length < data.requiredLeaders}/>
-      <div className="glass-panel flex flex-wrap content-center gap-2 rounded-3xl p-5 md:col-span-1"><Button asChild className="bg-[#0c0942]"><Link href="/skolai/drosibas-lapa"><FileSignature/> Drošības parakstu lapa</Link></Button></div>
     </section>
     {data.leaders.length < data.requiredLeaders && <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-900">{leaderRequirementMessage(data.participants.length, data.requiredLeaders, data.leaders.length)}</div>}
-    <SafetyUpload schoolId={data.school.id} revision={data.school.rosterRevision} document={data.safetyDocument} onSaved={() => load(true)} />
+    <section aria-label="Drošības lapa" className="mb-7 grid rounded-3xl border bg-white md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <div className="min-w-0 p-5">
+        <h2 className="text-xl font-black">Drošības lapa</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Lejupielādējiet lapu un parakstiet to.</p>
+        <Button asChild className="mt-4 max-w-full whitespace-normal bg-[#0c0942]"><Link href="/skolai/drosibas-lapa"><FileSignature /> Lejupielādēt drošības lapu</Link></Button>
+      </div>
+      <SafetyUpload schoolId={data.school.id} revision={data.school.rosterRevision} document={data.safetyDocument} onSaved={() => load(true)} />
+    </section>
     <Tabs defaultValue="participants">
       <TabsList className="mb-6 h-auto rounded-2xl bg-[#0c0942] p-1.5 text-white"><TabsTrigger value="participants" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Dalībnieki</TabsTrigger><TabsTrigger value="leaders" className="min-h-11 px-5 data-[state=active]:bg-[#d2d61d] data-[state=active]:text-[#0c0942]">Komandas vadītāji</TabsTrigger></TabsList>
       <TabsContent value="participants">

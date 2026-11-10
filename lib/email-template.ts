@@ -21,7 +21,7 @@ export const defaultEmailTemplate: EmailTemplate = {
   senderName: "Latvijas skolu Ziemas festivāls",
   subject: "Apstiprināta dalība Latvijas skolu Ziemas festivālā",
   heading: "Jūsu skola ir apstiprināta!",
-  message: "Labdien, {{skolotajs}}!\n\n{{skola}} dalība Latvijas skolu Ziemas festivālā ir apstiprināta.\n\nAtveriet skolas sadaļu un ievadiet zemāk redzamo piekļuves kodu, lai pievienotu komandas vadītājus un dalībniekus. Kad sastāvs ir gatavs, nospiediet “Pabeigt pieteikumu”.\n\nTiekamies Festivālā!",
+  message: "Labdien, {{skolotajs}}!\n\n{{skola}} dalība Latvijas skolu Ziemas festivālā ir apstiprināta.\n\nAtveriet skolas sadaļu un ievadiet zemāk redzamo piekļuves kodu, lai pievienotu komandas vadītājus un dalībniekus. Kad sastāvs ir gatavs, nospiediet “Apstiprināt komandas sastāvu”.\n\nTiekamies Festivālā!",
   buttonLabel: "Atvērt skolas sadaļu",
   footer: "Latvijas Sporta federāciju padome\nJautājumu gadījumā atbildiet uz šo e-pastu.",
   replyTo: "ziemasfestivals@lsfp.lv",

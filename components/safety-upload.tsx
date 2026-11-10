@@ -48,9 +48,9 @@ export function SafetyUpload({ schoolId, revision, document, onSaved }: {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Augšupielāde neizdevās."); }
     finally { setBusy(false); }
   }
-  return <section className="mb-7 rounded-3xl border bg-white p-5">
+  return <section className="min-w-0 border-t p-5 md:border-l md:border-t-0">
     <h2 className="flex items-center gap-2 text-xl font-black"><FileCheck2 /> Parakstītā drošības lapa</h2>
-    <p className="mt-2 text-sm text-muted-foreground">Lejupielādējiet drošības lapu, parakstiet un iesniedziet elektroniski šeit vai klātienē. Augšupielāde nav obligāta pieteikuma pabeigšanai.</p>
+    <p className="mt-2 text-sm text-muted-foreground">Parakstīto lapu var iesniegt šeit vai klātienē.</p>
     <p className="mt-2 text-sm text-muted-foreground">Elektroniskai iesniegšanai pieņemam PDF vai EDOC failus līdz 12 MB. Dokumentu redzēs jūsu skola un administrators. Augšupielāde ir pieejama arī pēc sastāva labošanas slēgšanas.</p>
     <p role="status" className={`mt-3 font-bold ${document?.status === "submitted" ? "text-emerald-800" : document ? "text-amber-900" : "text-muted-foreground"}`}>
       {document?.status === "submitted" ? "Iesniegta elektroniski" : document ? "Pēc elektroniskās iesniegšanas ir mainīti skolas dati vai sastāvs. Atjaunoto lapu varat augšupielādēt vai iesniegt klātienē." : "Elektroniski nav iesniegta"}
@@ -58,7 +58,7 @@ export function SafetyUpload({ schoolId, revision, document, onSaved }: {
     {document && <a className="mt-2 block break-all text-sm font-bold text-primary underline" href={`/api/safety-documents/${document.id}`}>{document.fileName} · {new Date(document.createdAt).toLocaleString("lv-LV")}</a>}
     {document && <Button type="button" variant="outline" className="mt-3 text-red-700" disabled={busy} onClick={remove}><Trash2 /> Dzēst augšupielādēto lapu</Button>}
     <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={submit}>
-      <label className="form-label">{document ? "Aizstāt ar jaunu dokumentu" : "Izvēlēties parakstīto dokumentu"}
+      <label className="form-label min-w-0 max-w-full">{document ? "Aizstāt ar jaunu dokumentu" : "Izvēlēties parakstīto dokumentu"}
         <input className="form-control max-w-full" type="file" accept=".pdf,.edoc" required disabled={busy} onChange={event => setFile(event.target.files?.[0] ?? null)} />
       </label>
       <Button type="submit" disabled={busy || !file}>{busy ? <Loader2 className="animate-spin" /> : <Upload />} Iesniegt elektroniski</Button>
